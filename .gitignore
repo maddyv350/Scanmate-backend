@@ -198,7 +198,6 @@ k8s-secrets/
 
 # Google Cloud
 .gcloud/
-*.json
 
 # Firebase
 .firebase/
