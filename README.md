@@ -2,7 +2,7 @@
 
 ## Authentication
 
-### Login api process
+### Login
 - **POST** `/api/v1/auth/login`
 - **Body:**
   ```json
