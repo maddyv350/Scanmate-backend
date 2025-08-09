@@ -76,6 +76,7 @@ const connectionController = {
 
       connection.status = 'accepted';
       connection.respondedAt = new Date();
+      connection.isActive = true;  // Set isActive to true when accepting
       await connection.save();
 
       // Populate both users for response
@@ -88,6 +89,7 @@ const connectionController = {
         receiverId: connection.receiverId,
         status: connection.status,
         respondedAt: connection.respondedAt,
+        isActive: connection.isActive,
         sender: connection.senderId,
         receiver: connection.receiverId,
       });
@@ -234,6 +236,8 @@ const connectionController = {
 
         return {
           id: connection._id,
+          status: connection.status,
+          isActive: connection.isActive,
           otherUser: {
             id: otherUser._id,
             firstName: otherUser.firstName,

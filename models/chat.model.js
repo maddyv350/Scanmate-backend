@@ -32,7 +32,12 @@ const chatRoomSchema = new mongoose.Schema({
     timestamp: {
       type: Date,
       default: Date.now
-    }
+    },
+    isEncrypted: {
+      type: Boolean,
+      default: false
+    },
+    messageHash: String
   },
   
   // Unread message counts for each participant
@@ -113,7 +118,9 @@ chatRoomSchema.methods.updateLastMessage = function(message) {
   this.lastMessage = {
     content: message.content,
     senderId: message.senderId,
-    timestamp: message.timestamp || new Date()
+    timestamp: message.timestamp || new Date(),
+    isEncrypted: message.isEncrypted || false,
+    messageHash: message.messageHash
   };
   this.updatedAt = new Date();
   return this.save();

@@ -2,6 +2,7 @@ const ChatRoom = require('../models/chat.model');
 const Message = require('../models/message.model');
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
+const EncryptionService = require('./encryption.service');
 
 class ChatService {
   // Get chat rooms for a user
@@ -21,6 +22,8 @@ class ChatService {
         
         const unreadCount = room.unreadCounts.get(userId) || 0;
         
+
+        
         return {
           roomId: room.roomId,
           otherUser: {
@@ -34,7 +37,9 @@ class ChatService {
             senderId: room.lastMessage.senderId?._id,
             senderName: room.lastMessage.senderId ? 
               `${room.lastMessage.senderId.firstName || ''} ${room.lastMessage.senderId.lastName || ''}` : '',
-            timestamp: room.lastMessage.timestamp
+            timestamp: room.lastMessage.timestamp,
+            isEncrypted: room.lastMessage.isEncrypted,
+            messageHash: room.lastMessage.messageHash
           } : null,
           unreadCount,
           updatedAt: room.updatedAt
@@ -76,7 +81,9 @@ class ChatService {
         senderPhoto: message.senderId.profilePhotoPath,
         status: message.status,
         timestamp: message.timestamp,
-        isOwnMessage: message.senderId._id.toString() === userId
+        isOwnMessage: message.senderId._id.toString() === userId,
+        isEncrypted: message.isEncrypted,
+        messageHash: message.messageHash
       }));
     } catch (error) {
       throw new Error(`Failed to get messages: ${error.message}`);
@@ -84,7 +91,7 @@ class ChatService {
   }
 
   // Send a message
-  async sendMessage(roomId, senderId, content, messageType = 'text', metadata = {}) {
+  async sendMessage(roomId, senderId, content, messageType = 'text', metadata = {}, isEncrypted = false, messageHash = null) {
     try {
       console.log('📨 HTTP: Sending message to room', roomId, 'from user', senderId);
       
@@ -104,7 +111,9 @@ class ChatService {
         senderId,
         content,
         messageType,
-        metadata
+        metadata,
+        isEncrypted,
+        messageHash
       });
       
       await message.save();
@@ -114,7 +123,9 @@ class ChatService {
       await chatRoom.updateLastMessage({
         content,
         senderId,
-        timestamp: message.timestamp
+        timestamp: message.timestamp,
+        isEncrypted,
+        messageHash
       });
 
       // Increment unread count for other participants
@@ -136,7 +147,9 @@ class ChatService {
         senderPhoto: message.senderId.profilePhotoPath,
         status: message.status,
         timestamp: message.timestamp,
-        roomId
+        roomId,
+        isEncrypted: message.isEncrypted,
+        messageHash: message.messageHash
       };
 
       console.log('📨 HTTP: Emitting socket event for message', message._id);
@@ -179,7 +192,11 @@ class ChatService {
       }
 
       const chatRoom = await ChatRoom.findOrCreateChatRoom(user1Id, user2Id, connection._id);
-      console.log('🔍 Chat room created/found:', chatRoom ? chatRoom.roomId : 'Failed to create');
+      console.log('🔍 Chat room created/found:', chatRoom ? {
+        roomId: chatRoom.roomId,
+        participants: chatRoom.participants.map(p => p._id || p),
+        connectionId: chatRoom.connectionId
+      } : 'Failed to create');
       return chatRoom;
     } catch (error) {
       console.error('❌ Error in createOrGetChatRoom:', error.message);

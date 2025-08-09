@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Location = require('../models/location.model');
 const User = require('../models/user.model');
 
@@ -44,9 +45,9 @@ const locationController = {
         userId: userId,
         userName: `${user.firstName} ${user.lastName}`.trim(),
         userPhoto: user.profilePhotoPath,
-        coordinates: {
-          latitude: parseFloat(latitude),
-          longitude: parseFloat(longitude),
+        location: {
+          type: 'Point',
+          coordinates: [parseFloat(longitude), parseFloat(latitude)], // MongoDB uses [longitude, latitude] order
         },
         droppedAt: new Date(),
         expiresAt: expiresAt,
@@ -63,19 +64,23 @@ const locationController = {
         userId: location.userId,
         userName: location.userName,
         userPhoto: location.userPhoto,
-        coordinates: location.coordinates,
+        coordinates: {
+          latitude: location.location.coordinates[1],
+          longitude: location.location.coordinates[0]
+        },
         droppedAt: location.droppedAt,
         expiresAt: location.expiresAt,
         isActive: location.isActive,
         userBio: location.userBio,
         age: location.age,
         gender: location.gender,
-        dropScore: user.dropScore, // Include user's drop score
-        connects: user.connects,   // Include user's connects
-        purposes: user.purposes,   // Include user's purposes
+        dropScore: 0, // Placeholder - can be implemented later
+        connects: 0,  // Placeholder - can be implemented later
+        purposes: [], // Placeholder - can be implemented later
       });
     } catch (error) {
       console.error('Error dropping location:', error);
+      console.error('Error stack:', error.stack);
       res.status(500).json({ message: 'Server error' });
     }
   },
@@ -89,10 +94,45 @@ const locationController = {
       console.log('🔍 Getting nearby users for userId:', userId);
       console.log('📍 Search coordinates:', { latitude, longitude, radius });
 
+      // Get active connections for the current user
+      const Connection = require('../models/connection.model');
+      console.log('🔍 Looking for active connections for user:', userId);
+      
+      // Convert userId to ObjectId if it's not already
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+        ? new mongoose.Types.ObjectId(userId)
+        : userId;
+
+      console.log('🔍 Looking for connections with userObjectId:', userObjectId);
+
+      const activeConnections = await Connection.find({
+        $or: [
+          { senderId: userObjectId, status: 'accepted', isActive: true },
+          { receiverId: userObjectId, status: 'accepted', isActive: true }
+        ]
+      });
+      
+      console.log('🤝 Found active connections:', activeConnections.map(conn => ({
+        id: conn._id,
+        senderId: conn.senderId,
+        receiverId: conn.receiverId,
+        status: conn.status,
+        isActive: conn.isActive
+      })));
+
+      // Extract connected user IDs
+      const connectedUserIds = activeConnections.map(conn => 
+        conn.senderId.toString() === userId.toString() ? conn.receiverId : conn.senderId
+      );
+
+      console.log('🤝 Connected user IDs:', connectedUserIds);
+
       const nearbyUsers = await Location.findNearbyUsers(
         parseFloat(latitude),
         parseFloat(longitude),
-        parseFloat(radius)
+        parseFloat(radius),
+        userId,
+        connectedUserIds
       );
 
       console.log('📊 Found nearby users:', nearbyUsers.length);
@@ -110,15 +150,15 @@ const locationController = {
           const distance = calculateDistance(
             parseFloat(latitude),
             parseFloat(longitude),
-            location.coordinates.latitude,
-            location.coordinates.longitude
+            location.location.coordinates[1],
+            location.location.coordinates[0]
           );
 
           // Get user data from populated userId field
           const user = location.userId;
-          const dropScore = user?.dropScore || 0;
-          const connects = user?.connects || 0;
-          const purposes = user?.purposes || [];
+          const dropScore = 0; // Placeholder - can be implemented later
+          const connects = 0;  // Placeholder - can be implemented later
+          const purposes = []; // Placeholder - can be implemented later
 
           console.log(`📍 User ${location.userName} at distance ${distance.toFixed(2)}km`);
 
@@ -127,7 +167,10 @@ const locationController = {
             userId: user?._id || location.userId,
             userName: location.userName,
             userPhoto: location.userPhoto,
-            coordinates: location.coordinates,
+            coordinates: {
+          latitude: location.location.coordinates[1],
+          longitude: location.location.coordinates[0]
+        },
             droppedAt: location.droppedAt,
             expiresAt: location.expiresAt,
             isActive: location.isActive,
@@ -197,16 +240,19 @@ const locationController = {
         userId: location.userId,
         userName: location.userName,
         userPhoto: location.userPhoto,
-        coordinates: location.coordinates,
+        coordinates: {
+          latitude: location.location.coordinates[1],
+          longitude: location.location.coordinates[0]
+        },
         droppedAt: location.droppedAt,
         expiresAt: location.expiresAt,
         isActive: location.isActive,
         userBio: location.userBio,
         age: location.age,
         gender: location.gender,
-        dropScore: user.dropScore, // Include user's drop score
-        connects: user.connects,   // Include user's connects
-        purposes: user.purposes,   // Include user's purposes
+        dropScore: 0, // Placeholder - can be implemented later
+        connects: 0,  // Placeholder - can be implemented later
+        purposes: [], // Placeholder - can be implemented later
       });
     } catch (error) {
       console.error('Error getting current user location:', error);

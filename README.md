@@ -8,7 +8,7 @@
   ```json
   {
     "email": "user@example.com",
-    "password": "password123"
+    "password": "password1234"
   }
   ```
 - **Response:**
