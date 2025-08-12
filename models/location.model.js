@@ -14,15 +14,16 @@ const locationSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
-  coordinates: {
-    latitude: {
-      type: Number,
-      required: true,
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
     },
-    longitude: {
-      type: Number,
-      required: true,
-    },
+    coordinates: {
+      type: [Number],  // [longitude, latitude] format for MongoDB
+      required: true
+    }
   },
   droppedAt: {
     type: Date,
@@ -54,7 +55,7 @@ const locationSchema = new mongoose.Schema({
 });
 
 // Index for geospatial queries
-locationSchema.index({ coordinates: '2dsphere' });
+locationSchema.index({ location: '2dsphere' });
 locationSchema.index({ userId: 1 });
 locationSchema.index({ isActive: 1 });
 locationSchema.index({ expiresAt: 1 });
@@ -65,19 +66,41 @@ locationSchema.methods.isLocationActive = function() {
 };
 
 // Static method to find nearby users
-locationSchema.statics.findNearbyUsers = function(latitude, longitude, radiusInKm) {
+locationSchema.statics.findNearbyUsers = function(latitude, longitude, radiusInKm, currentUserId, connectedUserIds) {
   console.log('🔍 Finding nearby users at:', { latitude, longitude, radiusInKm });
+  console.log('👤 Current user:', currentUserId);
+  console.log('🤝 Connected users:', connectedUserIds);
   
-  // Temporarily remove geospatial constraint to test
+  // Convert IDs to ObjectId if they're valid
+  const convertToObjectId = (id) => {
+    try {
+      return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+    } catch (e) {
+      console.error('Error converting ID:', id, e);
+      return id;
+    }
+  };
+
+  const idsToExclude = [currentUserId, ...connectedUserIds].map(convertToObjectId);
+  console.log('🚫 IDs to exclude:', idsToExclude);
+
   const query = {
     isActive: true,
     expiresAt: { $gt: new Date() },
+    userId: { $nin: idsToExclude }
   };
+
+  console.log('🔍 Final query:', JSON.stringify(query, (key, value) => {
+    if (key === 'userId' && value.$nin) {
+      return { $nin: value.$nin.map(id => id.toString()) };
+    }
+    return value;
+  }, 2));
   
   console.log('🔍 MongoDB query (no geospatial):', JSON.stringify(query, null, 2));
   
   return this.find(query)
-    .populate('userId', 'firstName lastName profilePhotoPath birthDate gender description purposes dropScore connects')
+    .populate('userId', 'firstName lastName profilePhotoPath birthDate gender description')
     .then(results => {
       console.log('🔍 Query results count:', results.length);
       results.forEach((result, index) => {

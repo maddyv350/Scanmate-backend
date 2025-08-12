@@ -104,7 +104,16 @@ class SocketService {
         return;
       }
 
-      if (!chatRoom.participants.some(p => p._id.toString() === socket.userId)) {
+      // Check if user is a participant in this chat room
+      const isParticipant = chatRoom.participants.some(p => {
+        const participantId = p._id ? p._id.toString() : p.toString();
+        console.log(`🔍 Checking participant: ${participantId} vs socket user: ${socket.userId}`);
+        return participantId === socket.userId;
+      });
+      
+      if (!isParticipant) {
+        console.log(`❌ User ${socket.userId} not authorized to join room ${roomId}`);
+        console.log(`📋 Room participants: ${chatRoom.participants.map(p => p._id || p)}`);
         socket.emit('error', { message: 'Not authorized to join this chat room' });
         return;
       }

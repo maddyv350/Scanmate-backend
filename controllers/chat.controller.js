@@ -50,7 +50,7 @@ class ChatController {
     try {
       const { roomId } = req.params;
       const userId = req.user.userId;
-      const { content, messageType = 'text', metadata = {} } = req.body;
+      const { content, messageType = 'text', metadata = {}, isEncrypted = false, messageHash = null } = req.body;
 
       if (!content || content.trim().length === 0) {
         return res.status(400).json({
@@ -64,7 +64,9 @@ class ChatController {
         userId,
         content.trim(),
         messageType,
-        metadata
+        metadata,
+        isEncrypted,
+        messageHash
       );
       
       res.json({

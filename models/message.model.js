@@ -14,11 +14,11 @@ const messageSchema = new mongoose.Schema({
     required: true
   },
   
-  // Content of the message
+  // Content of the message (encrypted)
   content: {
     type: String,
     required: true,
-    maxlength: 1000
+    maxlength: 2000 // Increased for encrypted content
   },
   
   // Message type (text, image, etc.)
@@ -26,6 +26,17 @@ const messageSchema = new mongoose.Schema({
     type: String,
     enum: ['text', 'image', 'location'],
     default: 'text'
+  },
+  
+  // Encryption fields
+  isEncrypted: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Message hash for integrity verification
+  messageHash: {
+    type: String
   },
   
   // Additional data for non-text messages
