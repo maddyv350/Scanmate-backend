@@ -71,20 +71,20 @@ class ChatService {
       // Reset unread count for this user
       await chatRoom.resetUnreadCount(userId);
       
-      return messages.reverse().map(message => ({
-        id: message._id,
-        content: message.content,
-        messageType: message.messageType,
-        metadata: message.metadata,
-        senderId: message.senderId._id,
-        senderName: `${message.senderId.firstName} ${message.senderId.lastName}`,
-        senderPhoto: message.senderId.profilePhotoPath,
-        status: message.status,
-        timestamp: message.timestamp,
-        isOwnMessage: message.senderId._id.toString() === userId,
-        isEncrypted: message.isEncrypted,
-        messageHash: message.messageHash
-      }));
+                    return messages.reverse().map(message => ({
+                id: message._id,
+                content: message.content,
+                messageType: message.messageType,
+                metadata: message.metadata,
+                senderId: message.senderId._id,
+                senderName: `${message.senderId.firstName} ${message.senderId.lastName}`,
+                senderPhoto: message.senderId.profilePhotoPath,
+                status: message.status,
+                timestamp: message.timestamp,
+                isOwnMessage: message.senderId._id.toString() === userId,
+                isEncrypted: message.isEncrypted,
+                messageHash: message.messageHash
+              }));
     } catch (error) {
       throw new Error(`Failed to get messages: ${error.message}`);
     }

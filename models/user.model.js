@@ -170,6 +170,17 @@ const userSchema = new mongoose.Schema({
       default: true
     }
   },
+  
+  // Block and report functionality
+  blockedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  
+  blockedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   createdAt: {
     type: Date,
     default: Date.now

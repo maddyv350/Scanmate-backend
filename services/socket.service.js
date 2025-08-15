@@ -83,10 +83,7 @@ class SocketService {
         this.handleTypingStop(socket, data);
       });
 
-      // Handle message read receipts
-      socket.on('mark_read', async (data) => {
-        await this.handleMarkRead(socket, data);
-      });
+
 
       // Handle disconnection
       socket.on('disconnect', () => {
@@ -241,29 +238,7 @@ class SocketService {
     });
   }
 
-  async handleMarkRead(socket, data) {
-    try {
-      const { roomId } = data;
-      
-      // Mark messages as read
-      await Message.markMessagesAsRead(roomId, socket.userId);
-      
-      // Reset unread count for this user
-      const chatRoom = await ChatRoom.getChatRoom(roomId);
-      if (chatRoom) {
-        await chatRoom.resetUnreadCount(socket.userId);
-      }
 
-      // Notify other participants
-      socket.to(roomId).emit('messages_read', {
-        roomId,
-        userId: socket.userId
-      });
-
-    } catch (error) {
-      socket.emit('error', { message: error.message });
-    }
-  }
 
   handleDisconnect(socket) {
     console.log(`User disconnected: ${socket.userId}`);

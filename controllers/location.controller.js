@@ -98,6 +98,18 @@ const locationController = {
       const Connection = require('../models/connection.model');
       console.log('🔍 Looking for active connections for user:', userId);
       
+      // Get swipe history to filter out swiped users
+      const Swipe = require('../models/swipe.model');
+      console.log('🔍 Looking for swipe history for user:', userId);
+      
+      const swipedUsers = await Swipe.find({ 
+        swiperId: userId, 
+        isActive: true 
+      }).select('targetUserId');
+      
+      const swipedUserIds = swipedUsers.map(swipe => swipe.targetUserId.toString());
+      console.log('🚫 Swiped user IDs:', swipedUserIds);
+      
       // Convert userId to ObjectId if it's not already
       const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
         ? new mongoose.Types.ObjectId(userId)
@@ -137,14 +149,22 @@ const locationController = {
 
       console.log('📊 Found nearby users:', nearbyUsers.length);
 
-      // Filter out current user and calculate distances
+      // Filter out current user, connected users, and swiped users, then calculate distances
       const usersWithDistance = nearbyUsers
         .filter(location => {
           // Handle both ObjectId and string comparisons
           const locationUserId = location.userId._id || location.userId;
-          const isNotCurrentUser = locationUserId.toString() !== userId.toString();
-          console.log(`👤 User ${locationUserId} vs current ${userId}: ${isNotCurrentUser ? 'SHOW' : 'FILTERED'}`);
-          return isNotCurrentUser;
+          const locationUserIdStr = locationUserId.toString();
+          
+          const isNotCurrentUser = locationUserIdStr !== userId.toString();
+          const isNotConnected = !connectedUserIds.includes(locationUserIdStr);
+          const isNotSwiped = !swipedUserIds.includes(locationUserIdStr);
+          
+          const shouldShow = isNotCurrentUser && isNotConnected && isNotSwiped;
+          
+          console.log(`👤 User ${locationUserIdStr}: current=${!isNotCurrentUser ? 'FILTERED' : 'OK'}, connected=${!isNotConnected ? 'FILTERED' : 'OK'}, swiped=${!isNotSwiped ? 'FILTERED' : 'OK'} -> ${shouldShow ? 'SHOW' : 'FILTERED'}`);
+          
+          return shouldShow;
         })
         .map(location => {
           const distance = calculateDistance(

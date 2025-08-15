@@ -8,6 +8,10 @@ const locationRoutes = require('./location.routes');
 const connectionRoutes = require('./connection.routes');
 const chatRoutes = require('./chat.routes');
 const encryptionRoutes = require('./encryption.routes');
+const swipeRoutes = require('./swipe.routes');
+
+// Import models to ensure they're registered
+require('../models/report.model');
 
 // Import middleware
 const authMiddleware = require('../middleware/auth.middleware');
@@ -19,5 +23,6 @@ router.use('/location', locationRoutes);
 router.use('/connection', connectionRoutes);
 router.use('/chat', chatRoutes);
 router.use('/encryption', encryptionRoutes);
+router.use('/swipes', swipeRoutes);
 
 module.exports = router;
