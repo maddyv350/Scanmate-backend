@@ -8,7 +8,7 @@ const locationController = {
     try {
       const { latitude, longitude } = req.body;
       const userId = req.user.userId;
-      
+
       console.log('DropBy request - User ID:', userId);
       console.log('DropBy request - Coordinates:', { latitude, longitude });
 
@@ -97,9 +97,21 @@ const locationController = {
       // Get active connections for the current user
       const Connection = require('../models/connection.model');
       console.log('🔍 Looking for active connections for user:', userId);
-      
+
+      // Get swipe history to filter out swiped users
+      const Swipe = require('../models/swipe.model');
+      console.log('🔍 Looking for swipe history for user:', userId);
+
+      const swipedUsers = await Swipe.find({
+        swiperId: userId,
+        isActive: true
+      }).select('targetUserId');
+
+      const swipedUserIds = swipedUsers.map(swipe => swipe.targetUserId.toString());
+      console.log('🚫 Swiped user IDs:', swipedUserIds);
+
       // Convert userId to ObjectId if it's not already
-      const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId)
         ? new mongoose.Types.ObjectId(userId)
         : userId;
 
@@ -111,7 +123,7 @@ const locationController = {
           { receiverId: userObjectId, status: 'accepted', isActive: true }
         ]
       });
-      
+
       console.log('🤝 Found active connections:', activeConnections.map(conn => ({
         id: conn._id,
         senderId: conn.senderId,
@@ -121,7 +133,7 @@ const locationController = {
       })));
 
       // Extract connected user IDs
-      const connectedUserIds = activeConnections.map(conn => 
+      const connectedUserIds = activeConnections.map(conn =>
         conn.senderId.toString() === userId.toString() ? conn.receiverId : conn.senderId
       );
 
@@ -137,14 +149,22 @@ const locationController = {
 
       console.log('📊 Found nearby users:', nearbyUsers.length);
 
-      // Filter out current user and calculate distances
+      // Filter out current user, connected users, and swiped users, then calculate distances
       const usersWithDistance = nearbyUsers
         .filter(location => {
           // Handle both ObjectId and string comparisons
           const locationUserId = location.userId._id || location.userId;
-          const isNotCurrentUser = locationUserId.toString() !== userId.toString();
-          console.log(`👤 User ${locationUserId} vs current ${userId}: ${isNotCurrentUser ? 'SHOW' : 'FILTERED'}`);
-          return isNotCurrentUser;
+          const locationUserIdStr = locationUserId.toString();
+
+          const isNotCurrentUser = locationUserIdStr !== userId.toString();
+          const isNotConnected = !connectedUserIds.includes(locationUserIdStr);
+          const isNotSwiped = !swipedUserIds.includes(locationUserIdStr);
+
+          const shouldShow = isNotCurrentUser && isNotConnected && isNotSwiped;
+
+          console.log(`👤 User ${locationUserIdStr}: current=${!isNotCurrentUser ? 'FILTERED' : 'OK'}, connected=${!isNotConnected ? 'FILTERED' : 'OK'}, swiped=${!isNotSwiped ? 'FILTERED' : 'OK'} -> ${shouldShow ? 'SHOW' : 'FILTERED'}`);
+
+          return shouldShow;
         })
         .map(location => {
           const distance = calculateDistance(
@@ -168,9 +188,9 @@ const locationController = {
             userName: location.userName,
             userPhoto: location.userPhoto,
             coordinates: {
-          latitude: location.location.coordinates[1],
-          longitude: location.location.coordinates[0]
-        },
+              latitude: location.location.coordinates[1],
+              longitude: location.location.coordinates[0]
+            },
             droppedAt: location.droppedAt,
             expiresAt: location.expiresAt,
             isActive: location.isActive,
@@ -296,11 +316,11 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Radius of the Earth in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c; // Distance in kilometers
   return distance;
 }

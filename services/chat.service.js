@@ -9,21 +9,21 @@ class ChatService {
   async getChatRoomsForUser(userId) {
     try {
       const chatRooms = await ChatRoom.getChatRoomsForUser(userId);
-      
+
       // Format the response
       return chatRooms.map(room => {
         const otherParticipant = room.participants.find(p => p._id.toString() !== userId);
-        
+
         // Skip rooms where we can't find the other participant
         if (!otherParticipant) {
           console.log('⚠️ Skipping chat room with no other participant:', room.roomId);
           return null;
         }
-        
-        const unreadCount = room.unreadCounts.get(userId) || 0;
-        
 
-        
+        const unreadCount = room.unreadCounts.get(userId) || 0;
+
+
+
         return {
           roomId: room.roomId,
           otherUser: {
@@ -35,7 +35,7 @@ class ChatService {
           lastMessage: room.lastMessage ? {
             content: room.lastMessage.content,
             senderId: room.lastMessage.senderId?._id,
-            senderName: room.lastMessage.senderId ? 
+            senderName: room.lastMessage.senderId ?
               `${room.lastMessage.senderId.firstName || ''} ${room.lastMessage.senderId.lastName || ''}` : '',
             timestamp: room.lastMessage.timestamp,
             isEncrypted: room.lastMessage.isEncrypted,
@@ -58,19 +58,18 @@ class ChatService {
       if (!chatRoom) {
         throw new Error('Chat room not found');
       }
-      
+
       if (!chatRoom.participants.some(p => p._id.toString() === userId)) {
         throw new Error('User not authorized to access this chat room');
       }
 
       const messages = await Message.getMessagesForRoom(roomId, limit, offset);
-      
+
       // Mark messages as read
       await Message.markMessagesAsRead(roomId, userId);
-      
+
       // Reset unread count for this user
       await chatRoom.resetUnreadCount(userId);
-      
       return messages.reverse().map(message => ({
         id: message._id,
         content: message.content,
@@ -94,13 +93,13 @@ class ChatService {
   async sendMessage(roomId, senderId, content, messageType = 'text', metadata = {}, isEncrypted = false, messageHash = null) {
     try {
       console.log('📨 HTTP: Sending message to room', roomId, 'from user', senderId);
-      
+
       // Verify user is part of the chat room
       const chatRoom = await ChatRoom.getChatRoom(roomId);
       if (!chatRoom) {
         throw new Error('Chat room not found');
       }
-      
+
       if (!chatRoom.participants.some(p => p._id.toString() === senderId)) {
         throw new Error('User not authorized to send message to this chat room');
       }
@@ -115,7 +114,7 @@ class ChatService {
         isEncrypted,
         messageHash
       });
-      
+
       await message.save();
       console.log('📨 HTTP: Message saved with ID', message._id);
 
@@ -168,7 +167,7 @@ class ChatService {
   async createOrGetChatRoom(user1Id, user2Id) {
     try {
       console.log('🔍 Creating chat room between users:', { user1Id, user2Id });
-      
+
       // Check if there's an active connection between these users
       const connection = await Connection.findOne({
         $or: [
@@ -211,14 +210,14 @@ class ChatService {
       if (!chatRoom) {
         throw new Error('Chat room not found');
       }
-      
+
       if (!chatRoom.participants.some(p => p._id.toString() === userId)) {
         throw new Error('User not authorized to access this chat room');
       }
 
       await Message.markMessagesAsRead(roomId, userId);
       await chatRoom.resetUnreadCount(userId);
-      
+
       return { success: true };
     } catch (error) {
       throw new Error(`Failed to mark messages as read: ${error.message}`);

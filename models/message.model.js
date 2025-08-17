@@ -62,10 +62,7 @@ const messageSchema = new mongoose.Schema({
     default: Date.now
   },
   
-  // Timestamp when message was read
-  readAt: {
-    type: Date
-  },
+  
   
   // Whether the message has been deleted
   isDeleted: {
@@ -103,23 +100,7 @@ messageSchema.statics.getUnreadMessages = function(roomId, userId) {
   });
 };
 
-// Static method to mark messages as read
-messageSchema.statics.markMessagesAsRead = function(roomId, userId) {
-  return this.updateMany(
-    {
-      roomId,
-      senderId: { $ne: userId },
-      status: { $ne: 'read' },
-      isDeleted: false
-    },
-    {
-      $set: {
-        status: 'read',
-        readAt: new Date()
-      }
-    }
-  );
-};
+
 
 // Static method to get message count for a room
 messageSchema.statics.getMessageCount = function(roomId) {
