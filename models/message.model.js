@@ -110,6 +110,24 @@ messageSchema.statics.getMessageCount = function(roomId) {
   });
 };
 
+// Static method to mark messages as read for a user in a room
+messageSchema.statics.markMessagesAsRead = function(roomId, userId) {
+  return this.updateMany(
+    {
+      roomId,
+      senderId: { $ne: userId },
+      status: { $ne: 'read' },
+      isDeleted: false
+    },
+    {
+      $set: {
+        status: 'read',
+        readAt: new Date()
+      }
+    }
+  );
+};
+
 // Method to mark message as delivered
 messageSchema.methods.markAsDelivered = function() {
   this.status = 'delivered';

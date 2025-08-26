@@ -26,6 +26,9 @@ class ChatController {
       const userId = req.user.userId;
       const { limit = 50, offset = 0 } = req.query;
 
+      console.log(`🔍 ChatController: Getting messages for room ${roomId}, user ${userId}`);
+      console.log(`📊 Query params: limit=${limit}, offset=${offset}`);
+
       const messages = await chatService.getMessagesForRoom(
         roomId, 
         userId, 
@@ -33,14 +36,28 @@ class ChatController {
         parseInt(offset)
       );
       
+      console.log(`✅ ChatController: Successfully retrieved ${messages.length} messages`);
+      
       res.json({
         success: true,
         data: messages
       });
     } catch (error) {
-      res.status(500).json({
+      console.error(`❌ ChatController: Error getting messages: ${error.message}`);
+      console.error(`❌ Stack trace: ${error.stack}`);
+      
+      // Determine appropriate status code
+      let statusCode = 500;
+      if (error.message.includes('not found')) {
+        statusCode = 404;
+      } else if (error.message.includes('not authorized')) {
+        statusCode = 403;
+      }
+      
+      res.status(statusCode).json({
         success: false,
-        message: error.message
+        message: error.message,
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }

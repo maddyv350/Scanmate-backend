@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ChatRoom = require('../models/chat.model');
 const Message = require('../models/message.model');
 const Connection = require('../models/connection.model');
@@ -53,23 +54,60 @@ class ChatService {
   // Get messages for a chat room
   async getMessagesForRoom(roomId, userId, limit = 50, offset = 0) {
     try {
+      console.log(`🔍 Getting messages for room: ${roomId}, user: ${userId}`);
+      
+      // Validate user ID format
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        console.log(`❌ Invalid user ID format: ${userId}`);
+        throw new Error('Invalid user ID format');
+      }
+
+      // Verify user exists
+      const user = await User.findById(userId);
+      if (!user) {
+        console.log(`❌ User not found: ${userId}`);
+        throw new Error('User not found');
+      }
+      console.log(`✅ User found: ${user.firstName} ${user.lastName}`);
+
       // Verify user is part of the chat room
       const chatRoom = await ChatRoom.getChatRoom(roomId);
       if (!chatRoom) {
+        console.log(`❌ Chat room not found: ${roomId}`);
         throw new Error('Chat room not found');
       }
 
+      console.log(`✅ Chat room found with ${chatRoom.participants.length} participants`);
+      console.log(`👥 Participants: ${chatRoom.participants.map(p => p._id.toString())}`);
+
       if (!chatRoom.participants.some(p => p._id.toString() === userId)) {
+        console.log(`❌ User ${userId} not authorized for room ${roomId}`);
         throw new Error('User not authorized to access this chat room');
       }
 
+      console.log(`✅ User ${userId} authorized for room ${roomId}`);
+
       const messages = await Message.getMessagesForRoom(roomId, limit, offset);
+      console.log(`📨 Found ${messages.length} messages for room ${roomId}`);
 
       // Mark messages as read
-      await Message.markMessagesAsRead(roomId, userId);
+      try {
+        await Message.markMessagesAsRead(roomId, userId);
+        console.log(`✅ Marked messages as read for user ${userId} in room ${roomId}`);
+      } catch (markReadError) {
+        console.error(`❌ Error marking messages as read: ${markReadError.message}`);
+        // Don't throw here, continue with getting messages
+      }
 
       // Reset unread count for this user
-      await chatRoom.resetUnreadCount(userId);
+      try {
+        await chatRoom.resetUnreadCount(userId);
+        console.log(`✅ Reset unread count for user ${userId} in room ${roomId}`);
+      } catch (resetError) {
+        console.error(`❌ Error resetting unread count: ${resetError.message}`);
+        // Don't throw here, continue with getting messages
+      }
+
       return messages.reverse().map(message => ({
         id: message._id,
         content: message.content,
@@ -85,6 +123,8 @@ class ChatService {
         messageHash: message.messageHash
       }));
     } catch (error) {
+      console.error(`❌ Error in getMessagesForRoom: ${error.message}`);
+      console.error(`❌ Stack trace: ${error.stack}`);
       throw new Error(`Failed to get messages: ${error.message}`);
     }
   }
