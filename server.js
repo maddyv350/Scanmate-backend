@@ -32,6 +32,29 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('Could not connect to MongoDB', err));
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Scanmate Backend API',
+    version: require('./package.json').version,
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      api: '/api/v1',
+      routes: {
+        auth: '/api/v1/auth',
+        user: '/api/v1/user',
+        location: '/api/v1/location',
+        connection: '/api/v1/connection',
+        chat: '/api/v1/chat',
+        encryption: '/api/v1/encryption',
+        swipes: '/api/v1/swipes'
+      }
+    },
+    documentation: 'API endpoints are available under /api/v1 prefix'
+  });
+});
+
 // Health check route
 app.get('/health', (req, res) => {
   const uptime = Date.now() - startTime;
