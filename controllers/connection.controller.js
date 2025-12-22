@@ -1,5 +1,6 @@
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
+const Swipe = require('../models/swipe.model');
 
 const connectionController = {
   // Send a connection request
@@ -252,6 +253,84 @@ const connectionController = {
     } catch (error) {
       console.error('Error getting active connections:', error);
       res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  // Get received likes (users who swiped right on the current user)
+  async getReceivedLikes(req, res) {
+    try {
+      const userId = req.user.userId;
+      const { page = 1, limit = 50 } = req.query;
+
+      // Build query - find swipes where current user is the target and direction is right
+      const query = { 
+        targetUserId: userId, 
+        swipeDirection: 'right',
+        isActive: true 
+      };
+
+      // Pagination
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const limitNum = parseInt(limit);
+
+      // Get swipes with pagination, populate swiper details
+      const swipes = await Swipe.find(query)
+        .select('swiperId swipeDirection timestamp message')
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('swiperId', 'userName userPhoto age gender bio');
+
+      // Get total count for pagination
+      const total = await Swipe.countDocuments(query);
+
+      // Filter out users that the current user has already swiped on
+      const swipedByCurrentUser = await Swipe.find({
+        swiperId: userId,
+        isActive: true
+      }).select('targetUserId');
+
+      const swipedUserIds = new Set(
+        swipedByCurrentUser.map(swipe => swipe.targetUserId.toString())
+      );
+
+      // Format response - only include users not yet swiped by current user
+      const receivedLikes = swipes
+        .filter(swipe => {
+          const swiperId = swipe.swiperId._id.toString();
+          return !swipedUserIds.contains(swiperId);
+        })
+        .map(swipe => ({
+          userId: swipe.swiperId._id,
+          userName: swipe.swiperId.userName,
+          userPhoto: swipe.swiperId.userPhoto,
+          age: swipe.swiperId.age,
+          gender: swipe.swiperId.gender,
+          bio: swipe.swiperId.bio,
+          likedAt: swipe.timestamp,
+          message: swipe.message
+        }));
+
+      res.json({
+        success: true,
+        data: {
+          likes: receivedLikes,
+          pagination: {
+            page: parseInt(page),
+            limit: limitNum,
+            total: receivedLikes.length,
+            pages: Math.ceil(receivedLikes.length / limitNum)
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error getting received likes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 };

@@ -27,4 +27,7 @@ router.get('/sent', connectionController.getSentRequests);
 // Get active connections
 router.get('/active', connectionController.getActiveConnections);
 
+// Get received likes (users who swiped right on current user)
+router.get('/received-likes', connectionController.getReceivedLikes);
+
 module.exports = router; 
