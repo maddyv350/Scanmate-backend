@@ -279,7 +279,7 @@ const connectionController = {
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('swiperId', 'firstName lastName photos gender birthDate profilePhotoPath description');
+        .populate('swiperId', 'firstName photos gender birthDate');
 
       // Get total count for pagination
       const total = await Swipe.countDocuments(query);
@@ -303,20 +303,23 @@ const connectionController = {
         })
         .map(swipe => {
           const user = swipe.swiperId;
+          
           // Calculate age from birthDate
           let age = null;
-          if (user.birthDate) {
-            age = Math.floor((new Date() - new Date(user.birthDate)) / (365.25 * 24 * 60 * 60 * 1000));
+          if (user && user.birthDate) {
+            const birthDate = new Date(user.birthDate);
+            const today = new Date();
+            age = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
           }
           
-          // Get first photo or profilePhotoPath
-          const userPhoto = (user.photos && user.photos.length > 0) 
+          // Get first photo from photos array
+          const userPhoto = (user && user.photos && user.photos.length > 0) 
             ? user.photos[0] 
-            : (user.profilePhotoPath || null);
+            : null;
           
-          // Construct userName from firstName and lastName
-          const userName = user.firstName 
-            ? (user.lastName ? `${user.firstName} ${user.lastName}`.trim() : user.firstName)
+          // Use firstName as userName (User model doesn't have lastName)
+          const userName = (user && user.firstName) 
+            ? user.firstName
             : 'Unknown User';
           
           return {
@@ -324,10 +327,10 @@ const connectionController = {
             userName: userName,
             userPhoto: userPhoto,
             age: age,
-            gender: user.gender,
-            bio: user.description || null,
+            gender: user.gender || null,
+            bio: null, // User model doesn't have bio/description field
             likedAt: swipe.timestamp,
-            message: swipe.message
+            message: swipe.message || null
           };
         });
 
