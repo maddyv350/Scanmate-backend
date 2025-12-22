@@ -222,21 +222,6 @@ All endpoints are prefixed with `/api/v1` unless otherwise specified.
 - **Auth**: Required (Bearer token)
 - **Body**: `{ targetUserId, swipeDirection, message? }`
 
-### GET `/api/v1/swipes/history`
-- **Description**: Get user's swipe history
-- **Auth**: Required (Bearer token)
-- **Query**: `{ page?, limit?, direction? }`
-
-### GET `/api/v1/swipes/matches`
-- **Description**: Get potential matches (mutual right swipes)
-- **Auth**: Required (Bearer token)
-- **Query**: `{ page?, limit? }`
-
-### DELETE `/api/v1/swipes/:swipeId`
-- **Description**: Delete a swipe (soft delete)
-- **Auth**: Required (Bearer token)
-- **Params**: `swipeId` - ID of the swipe
-
 ---
 
 ## Socket.IO

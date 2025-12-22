@@ -279,7 +279,7 @@ const connectionController = {
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('swiperId', 'userName userPhoto age gender bio');
+        .populate('swiperId', 'firstName lastName photos gender birthDate profilePhotoPath description');
 
       // Get total count for pagination
       const total = await Swipe.countDocuments(query);
@@ -297,19 +297,39 @@ const connectionController = {
       // Format response - only include users not yet swiped by current user
       const receivedLikes = swipes
         .filter(swipe => {
+          if (!swipe.swiperId || !swipe.swiperId._id) return false;
           const swiperId = swipe.swiperId._id.toString();
           return !swipedUserIds.contains(swiperId);
         })
-        .map(swipe => ({
-          userId: swipe.swiperId._id,
-          userName: swipe.swiperId.userName,
-          userPhoto: swipe.swiperId.userPhoto,
-          age: swipe.swiperId.age,
-          gender: swipe.swiperId.gender,
-          bio: swipe.swiperId.bio,
-          likedAt: swipe.timestamp,
-          message: swipe.message
-        }));
+        .map(swipe => {
+          const user = swipe.swiperId;
+          // Calculate age from birthDate
+          let age = null;
+          if (user.birthDate) {
+            age = Math.floor((new Date() - new Date(user.birthDate)) / (365.25 * 24 * 60 * 60 * 1000));
+          }
+          
+          // Get first photo or profilePhotoPath
+          const userPhoto = (user.photos && user.photos.length > 0) 
+            ? user.photos[0] 
+            : (user.profilePhotoPath || null);
+          
+          // Construct userName from firstName and lastName
+          const userName = user.firstName 
+            ? (user.lastName ? `${user.firstName} ${user.lastName}`.trim() : user.firstName)
+            : 'Unknown User';
+          
+          return {
+            userId: user._id,
+            userName: userName,
+            userPhoto: userPhoto,
+            age: age,
+            gender: user.gender,
+            bio: user.description || null,
+            likedAt: swipe.timestamp,
+            message: swipe.message
+          };
+        });
 
       res.json({
         success: true,
