@@ -109,20 +109,30 @@ class ChatService {
         // Don't throw here, continue with getting messages
       }
 
-      return messages.reverse().map(message => ({
-        id: message._id,
-        content: message.content,
-        messageType: message.messageType,
-        metadata: message.metadata,
-        senderId: message.senderId._id,
-        senderName: `${message.senderId.firstName} ${message.senderId.lastName}`,
-        senderPhoto: message.senderId.profilePhotoPath,
-        status: message.status,
-        timestamp: message.timestamp,
-        isOwnMessage: message.senderId._id.toString() === userId,
-        isEncrypted: message.isEncrypted,
-        messageHash: message.messageHash
-      }));
+      return messages.reverse().map(message => {
+        // Handle case where senderId might not be populated
+        const senderIdObj = message.senderId;
+        const senderId = senderIdObj?._id || senderIdObj || null;
+        const senderFirstName = senderIdObj?.firstName || '';
+        const senderLastName = senderIdObj?.lastName || '';
+        const senderPhotos = senderIdObj?.photos || [];
+        
+        return {
+          id: message._id,
+          roomId: message.roomId, // Include roomId in response
+          content: message.content,
+          messageType: message.messageType,
+          metadata: message.metadata,
+          senderId: senderId,
+          senderName: senderIdObj ? `${senderFirstName} ${senderLastName}`.trim() : '',
+          senderPhoto: senderPhotos.length > 0 ? senderPhotos[0] : (senderIdObj?.profilePhotoPath || null),
+          status: message.status,
+          timestamp: message.timestamp,
+          isOwnMessage: senderId && senderId.toString() === userId,
+          isEncrypted: message.isEncrypted || false,
+          messageHash: message.messageHash || null
+        };
+      });
     } catch (error) {
       console.error(`❌ Error in getMessagesForRoom: ${error.message}`);
       console.error(`❌ Stack trace: ${error.stack}`);
