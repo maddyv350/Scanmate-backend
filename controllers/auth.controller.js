@@ -105,7 +105,49 @@ exports.completeProfile = async (req, res) => {
     // Update user profile with all the new fields
     if (firstName) user.firstName = firstName;
     if (birthDate) user.birthDate = new Date(birthDate);
-    if (photos) user.photos = photos;
+    
+    // Handle photos - if photos are provided as base64 array, upload to S3
+    if (photos && Array.isArray(photos) && photos.length > 0) {
+      const s3Service = require('../services/s3.service');
+      
+      // Check if photos are base64 strings or URLs
+      const isBase64 = photos[0].startsWith('data:image') || photos[0].startsWith('/9j/') || photos[0].length > 100;
+      
+      if (isBase64) {
+        // Delete old photos from S3 if they exist
+        if (user.photos && user.photos.length > 0) {
+          for (const oldPhotoUrl of user.photos) {
+            if (oldPhotoUrl && oldPhotoUrl.includes('amazonaws.com')) {
+              try {
+                await s3Service.deleteImage(oldPhotoUrl);
+              } catch (deleteError) {
+                console.error('Error deleting old photo:', deleteError);
+              }
+            }
+          }
+        }
+        
+        // Upload new photos to S3
+        try {
+          const photoUrls = await s3Service.uploadMultipleImages(
+            photos,
+            'user-photos',
+            userId.toString()
+          );
+          user.photos = photoUrls;
+        } catch (uploadError) {
+          console.error('Error uploading photos to S3:', uploadError);
+          return res.status(500).json({ 
+            success: false,
+            message: 'Failed to upload photos', 
+            error: uploadError.message 
+          });
+        }
+      } else {
+        // Photos are already URLs, just store them
+        user.photos = photos;
+      }
+    }
     if (prompts) user.prompts = prompts;
     if (pronouns !== undefined) user.pronouns = pronouns;
     if (gender) user.gender = gender;
@@ -244,24 +286,119 @@ exports.updateProfileField = async (req, res) => {
 exports.uploadProfilePhoto = async (req, res) => {
   try {
     const { userId } = req.user;
-    const { photoPath } = req.body;
+    const { photoBase64 } = req.body; // Expecting base64 image
+
+    if (!photoBase64) {
+      return res.status(400).json({ message: 'Photo data is required' });
+    }
 
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // In a real application, you would upload the image to a cloud storage service
-    // For now, we'll just store the path
-    user.profilePhotoPath = photoPath;
+    // Delete old profile photo from S3 if exists
+    const s3Service = require('../services/s3.service');
+    if (user.profilePhotoPath && user.profilePhotoPath.includes('amazonaws.com')) {
+      try {
+        await s3Service.deleteImage(user.profilePhotoPath);
+      } catch (deleteError) {
+        console.error('Error deleting old profile photo:', deleteError);
+        // Continue even if deletion fails
+      }
+    }
+
+    // Upload new photo to S3
+    const photoUrl = await s3Service.uploadBase64Image(
+      photoBase64,
+      'profile-photos',
+      userId.toString()
+    );
+
+    // Update user with new photo URL
+    user.profilePhotoPath = photoUrl;
     await user.save();
 
     res.json({ 
+      success: true,
       message: 'Profile photo uploaded successfully',
       profilePhotoPath: user.profilePhotoPath
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Error uploading profile photo:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+// Upload multiple photos for user profile
+exports.uploadPhotos = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { photos } = req.body; // Array of base64 images
+
+    if (!photos || !Array.isArray(photos) || photos.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Photos array is required' 
+      });
+    }
+
+    if (photos.length > 4) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Maximum 4 photos allowed' 
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+
+    const s3Service = require('../services/s3.service');
+    
+    // Delete old photos from S3 if they exist
+    if (user.photos && user.photos.length > 0) {
+      for (const oldPhotoUrl of user.photos) {
+        if (oldPhotoUrl && oldPhotoUrl.includes('amazonaws.com')) {
+          try {
+            await s3Service.deleteImage(oldPhotoUrl);
+          } catch (deleteError) {
+            console.error('Error deleting old photo:', deleteError);
+          }
+        }
+      }
+    }
+
+    // Upload new photos to S3
+    const photoUrls = await s3Service.uploadMultipleImages(
+      photos,
+      'user-photos',
+      userId.toString()
+    );
+
+    // Update user with new photo URLs
+    user.photos = photoUrls;
+    await user.save();
+
+    res.json({ 
+      success: true,
+      message: 'Photos uploaded successfully',
+      photos: user.photos
+    });
+  } catch (error) {
+    console.error('Error uploading photos:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };

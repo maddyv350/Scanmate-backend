@@ -47,7 +47,16 @@ All endpoints are prefixed with `/api/v1` unless otherwise specified.
 - **Auth**: Required (Bearer token)
 
 ### POST `/api/v1/auth/upload-profile-photo`
-- **Description**: Upload profile photo
+- **Description**: Upload profile photo to AWS S3
+- **Auth**: Required (Bearer token)
+- **Body**: `{ "photoBase64": "data:image/jpeg;base64,..." }`
+- **Response**: `{ "success": true, "profilePhotoPath": "https://s3.amazonaws.com/..." }`
+
+### POST `/api/v1/auth/upload-photos`
+- **Description**: Upload multiple photos to AWS S3 (max 4)
+- **Auth**: Required (Bearer token)
+- **Body**: `{ "photos": ["data:image/jpeg;base64,...", ...] }`
+- **Response**: `{ "success": true, "photos": ["https://s3.amazonaws.com/...", ...] }`
 - **Auth**: Required (Bearer token)
 
 ---
