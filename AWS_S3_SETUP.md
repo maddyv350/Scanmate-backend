@@ -119,12 +119,17 @@ Images are organized in folders:
 ### Error: "Access Denied"
 - Check IAM user permissions
 - Verify bucket policy allows public read access
-- Ensure ACL is set to 'public-read' in upload params
+- **Note**: Newer S3 buckets (created after April 2023) have ACLs disabled by default. The code uses bucket policies instead of ACLs for public access.
+
+### Error: "AccessControlListNotSupported: The bucket does not allow ACLs"
+- This means your bucket has ACLs disabled (default for newer buckets)
+- The code has been updated to not use ACLs - ensure you're using the latest version
+- Public access is handled via bucket policy, not ACLs
 
 ### Images not accessible publicly
-- Verify bucket policy allows public read
+- Verify bucket policy allows public read (see Step 2)
 - Check CORS configuration if accessing from web app
-- Ensure ACL is set correctly in upload params
+- Ensure bucket policy is correctly configured (ACLs are not used)
 
 ## CORS Configuration (if needed)
 

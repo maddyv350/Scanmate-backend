@@ -29,25 +29,28 @@ const userSchema = new mongoose.Schema({
   birthDate: {
     type: Date
   },
-  photos: [{
-    type: String,  // URLs to photo storage (max 4)
+  photos: {
+    type: [String],  // URLs to photo storage (max 4)
     validate: {
       validator: function(v) {
-        return this.photos.length <= 4;
+        return !v || v.length <= 4;
       },
       message: 'Maximum 4 photos allowed'
     }
-  }],
-  prompts: [{
-    type: String,
-    maxlength: 500,
+  },
+  prompts: {
+    type: [String],
     validate: {
       validator: function(v) {
-        return this.prompts.length <= 3;
+        if (!v) return true;
+        // Check each prompt is <= 500 characters
+        const allValidLength = v.every(prompt => prompt.length <= 500);
+        // Check total count <= 3
+        return allValidLength && v.length <= 3;
       },
-      message: 'Maximum 3 prompts allowed'
+      message: 'Maximum 3 prompts allowed, each with max 500 characters'
     }
-  }],
+  },
   pronouns: {
     type: String,
     trim: true

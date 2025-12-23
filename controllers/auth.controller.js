@@ -97,6 +97,9 @@ exports.completeProfile = async (req, res) => {
       smokingStatus
     } = req.body;
 
+    console.log(`📝 Starting profile completion for user ${userId}`);
+    console.log(`📋 Received fields: ${Object.keys(req.body).join(', ')}`);
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -110,18 +113,49 @@ exports.completeProfile = async (req, res) => {
     if (photos && Array.isArray(photos) && photos.length > 0) {
       const s3Service = require('../services/s3.service');
       
+      console.log(`📸 Processing ${photos.length} photos for user ${userId}`);
+      console.log(`📋 First photo sample: ${photos[0]?.substring(0, 100)}...`);
+      
       // Check if photos are base64 strings or URLs
-      const isBase64 = photos[0].startsWith('data:image') || photos[0].startsWith('/9j/') || photos[0].length > 100;
+      // More robust check: must start with data:image or be a URL
+      const firstPhoto = photos[0]?.toString() || '';
+      const isBase64 = firstPhoto.startsWith('data:image');
+      const isUrl = firstPhoto.startsWith('http://') || firstPhoto.startsWith('https://');
+      const isFilePath = firstPhoto.startsWith('/') && !firstPhoto.startsWith('http');
+      
+      console.log(`🔍 Photo format detection: isBase64=${isBase64}, isUrl=${isUrl}, isFilePath=${isFilePath}`);
+      
+      if (isFilePath) {
+        console.error('❌ Received file paths instead of base64 images. File paths cannot be processed.');
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid photo format. Photos must be base64 encoded images or URLs.',
+          error: 'File paths received instead of base64 data URLs'
+        });
+      }
       
       if (isBase64) {
+        console.log('✅ Photos are base64 encoded, uploading to S3...');
+        
+        // Check S3 configuration before attempting upload
+        if (!process.env.AWS_S3_BUCKET_NAME) {
+          console.error('❌ AWS_S3_BUCKET_NAME is not configured');
+          return res.status(500).json({
+            success: false,
+            message: 'S3 configuration missing. Please configure AWS_S3_BUCKET_NAME in environment variables.',
+            error: 'AWS_S3_BUCKET_NAME not set'
+          });
+        }
+        
         // Delete old photos from S3 if they exist
         if (user.photos && user.photos.length > 0) {
+          console.log(`🗑️ Deleting ${user.photos.length} old photos from S3...`);
           for (const oldPhotoUrl of user.photos) {
             if (oldPhotoUrl && oldPhotoUrl.includes('amazonaws.com')) {
               try {
                 await s3Service.deleteImage(oldPhotoUrl);
               } catch (deleteError) {
-                console.error('Error deleting old photo:', deleteError);
+                console.error('⚠️ Error deleting old photo (non-fatal):', deleteError.message);
               }
             }
           }
@@ -129,25 +163,43 @@ exports.completeProfile = async (req, res) => {
         
         // Upload new photos to S3
         try {
+          console.log(`⬆️ Uploading ${photos.length} photos to S3...`);
           const photoUrls = await s3Service.uploadMultipleImages(
             photos,
             'user-photos',
             userId.toString()
           );
+          console.log(`✅ Successfully uploaded ${photoUrls.length} photos to S3`);
           user.photos = photoUrls;
         } catch (uploadError) {
-          console.error('Error uploading photos to S3:', uploadError);
+          console.error('❌ Error uploading photos to S3:', uploadError);
+          console.error('Error details:', {
+            message: uploadError.message,
+            stack: uploadError.stack,
+            code: uploadError.code
+          });
           return res.status(500).json({ 
             success: false,
-            message: 'Failed to upload photos', 
-            error: uploadError.message 
+            message: 'Failed to upload photos to S3', 
+            error: uploadError.message,
+            details: process.env.NODE_ENV === 'development' ? uploadError.stack : undefined
           });
         }
-      } else {
+      } else if (isUrl) {
         // Photos are already URLs, just store them
+        console.log('✅ Photos are already URLs, storing as-is');
         user.photos = photos;
+      } else {
+        console.error('❌ Unknown photo format:', firstPhoto.substring(0, 200));
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid photo format. Photos must be base64 encoded images (data:image/...) or URLs (http://... or https://...).',
+          error: 'Unknown photo format'
+        });
       }
     }
+    
+    // Update other profile fields
     if (prompts) user.prompts = prompts;
     if (pronouns !== undefined) user.pronouns = pronouns;
     if (gender) user.gender = gender;
@@ -162,7 +214,23 @@ exports.completeProfile = async (req, res) => {
     if (languagesSpoken) user.languagesSpoken = languagesSpoken;
     if (datingIntentions !== undefined) user.datingIntentions = datingIntentions;
     if (height !== undefined) user.height = height;
-    if (location) user.location = location;
+    if (location) {
+      // Ensure location is in correct GeoJSON Point format
+      if (location.type && location.coordinates && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+        user.location = {
+          type: 'Point',
+          coordinates: [parseFloat(location.coordinates[0]), parseFloat(location.coordinates[1])]
+        };
+      } else if (location.latitude !== undefined && location.longitude !== undefined) {
+        // Handle {latitude, longitude} format
+        user.location = {
+          type: 'Point',
+          coordinates: [parseFloat(location.longitude), parseFloat(location.latitude)]
+        };
+      } else {
+        console.warn('⚠️ Invalid location format, skipping location update');
+      }
+    }
     if (ethnicity !== undefined) user.ethnicity = ethnicity;
     if (zodiacSign !== undefined) user.zodiacSign = zodiacSign;
     if (drinkingStatus !== undefined) user.drinkingStatus = drinkingStatus;
@@ -170,7 +238,25 @@ exports.completeProfile = async (req, res) => {
     
     user.isProfileComplete = true;
 
-    await user.save();
+    console.log('💾 Saving user profile...');
+    try {
+      await user.save();
+      console.log('✅ Profile saved successfully');
+    } catch (saveError) {
+      console.error('❌ Error saving user profile:', saveError);
+      console.error('Save error details:', {
+        message: saveError.message,
+        name: saveError.name,
+        errors: saveError.errors,
+        code: saveError.code
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to save profile',
+        error: saveError.message,
+        details: saveError.errors || (process.env.NODE_ENV === 'development' ? saveError.stack : undefined)
+      });
+    }
 
     res.json({ 
       message: 'Profile completed successfully', 
@@ -183,8 +269,21 @@ exports.completeProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('❌ Unexpected error in completeProfile:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      keyPattern: error.keyPattern,
+      keyValue: error.keyValue,
+      errors: error.errors
+    });
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

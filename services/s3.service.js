@@ -51,12 +51,13 @@ class S3Service {
       const key = `${folder}/${filename}`;
       
       // Upload to S3
+      // Note: ACL is removed because newer S3 buckets don't support ACLs
+      // Public access is handled via bucket policy instead
       const uploadParams = {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: buffer,
         ContentType: `image/${extension}`,
-        ACL: 'public-read', // Make image publicly accessible
       };
       
       const result = await s3.upload(uploadParams).promise();
@@ -97,12 +98,13 @@ class S3Service {
       const key = `${folder}/${filename}`;
       
       // Upload to S3
+      // Note: ACL is removed because newer S3 buckets don't support ACLs
+      // Public access is handled via bucket policy instead
       const uploadParams = {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: buffer,
         ContentType: mimetype,
-        ACL: 'public-read',
       };
       
       const result = await s3.upload(uploadParams).promise();
