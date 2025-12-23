@@ -1,8 +1,10 @@
+const mongoose = require('mongoose');
 const Swipe = require('../models/swipe.model');
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
 const Location = require('../models/location.model');
 const chatService = require('../services/chat.service');
+const socketService = require('../services/socket.service');
 
 /**
  * Record a swipe action
@@ -87,61 +89,137 @@ const recordSwipe = async (req, res) => {
       // If there's a match, create a connection, sync matches, and chat room
       if (match) {
         try {
-          // Check if connection already exists
+          // Ensure ObjectId consistency
+          const swiperObjectId = mongoose.Types.ObjectId.isValid(swiperId) 
+            ? new mongoose.Types.ObjectId(swiperId) 
+            : swiperId;
+          const targetObjectId = mongoose.Types.ObjectId.isValid(targetUserId) 
+            ? new mongoose.Types.ObjectId(targetUserId) 
+            : targetUserId;
+
+          // Check if connection already exists in either direction
           let connection = await Connection.findOne({
             $or: [
-              { senderId: swiperId, receiverId: targetUserId },
-              { senderId: targetUserId, receiverId: swiperId }
-            ],
-            status: 'accepted',
-            isActive: true
+              { senderId: swiperObjectId, receiverId: targetObjectId },
+              { senderId: targetObjectId, receiverId: swiperObjectId }
+            ]
           });
 
-          // Create connection if it doesn't exist
+          // Create or update connection
           if (!connection) {
+            // Create new connection
             connection = new Connection({
-              senderId: swiperId,
-              receiverId: targetUserId,
+              senderId: swiperObjectId,
+              receiverId: targetObjectId,
               status: 'accepted',
               respondedAt: new Date(),
-              isActive: true
+              isActive: true,
+              sentAt: new Date()
             });
+            try {
+              await connection.save();
+            } catch (saveError) {
+              // If save fails due to unique constraint (race condition), find existing
+              if (saveError.code === 11000) {
+                connection = await Connection.findOne({
+                  $or: [
+                    { senderId: swiperObjectId, receiverId: targetObjectId },
+                    { senderId: targetObjectId, receiverId: swiperObjectId }
+                  ]
+                });
+              } else {
+                throw saveError;
+              }
+            }
+          }
+
+          // Update connection status if needed
+          if (connection && connection.status !== 'accepted') {
+            connection.status = 'accepted';
+            connection.respondedAt = new Date();
+            connection.isActive = true;
             await connection.save();
           }
           
           // Sync matches - add each user to the other's matches array
-          const swiper = await User.findById(swiperId);
-          const target = await User.findById(targetUserId);
+          const swiper = await User.findById(swiperObjectId);
+          const target = await User.findById(targetObjectId);
           
           if (swiper && target) {
+            // Convert matches to strings for comparison
+            const swiperMatchesStr = swiper.matches.map(m => m.toString());
+            const targetMatchesStr = target.matches.map(m => m.toString());
+            const targetUserIdStr = targetObjectId.toString();
+            const swiperIdStr = swiperObjectId.toString();
+            
             // Add target to swiper's matches if not already there
-            if (!swiper.matches.includes(targetUserId)) {
-              swiper.matches.push(targetUserId);
+            if (!swiperMatchesStr.includes(targetUserIdStr)) {
+              swiper.matches.push(targetObjectId);
               await swiper.save();
-              console.log(`✅ Added ${targetUserId} to ${swiperId}'s matches`);
+              console.log(`✅ Added ${targetUserIdStr} to ${swiperIdStr}'s matches`);
             }
             
             // Add swiper to target's matches if not already there
-            if (!target.matches.includes(swiperId)) {
-              target.matches.push(swiperId);
+            if (!targetMatchesStr.includes(swiperIdStr)) {
+              target.matches.push(swiperObjectId);
               await target.save();
-              console.log(`✅ Added ${swiperId} to ${targetUserId}'s matches`);
+              console.log(`✅ Added ${swiperIdStr} to ${targetUserIdStr}'s matches`);
             }
           }
           
           // Auto-create chat room for the match
+          let chatRoom = null;
           try {
-            await chatService.createOrGetChatRoom(swiperId, targetUserId);
+            chatRoom = await chatService.createOrGetChatRoom(swiperId, targetUserId);
             console.log(`💬 Chat room created for match between ${swiperId} and ${targetUserId}`);
           } catch (chatError) {
             console.error('Error creating chat room:', chatError);
             // Don't fail the swipe if chat room creation fails
           }
           
+          // Send socket notification to both users about the match
+          try {
+            const swiperUser = await User.findById(swiperObjectId).select('firstName photos');
+            const targetUser = await User.findById(targetObjectId).select('firstName photos');
+            
+            const matchData = {
+              matchId: match.matchId,
+              timestamp: match.timestamp,
+              otherUser: {
+                id: targetUser._id.toString(),
+                firstName: targetUser.firstName || '',
+                photo: targetUser.photos && targetUser.photos.length > 0 ? targetUser.photos[0] : null
+              },
+              chatRoom: chatRoom ? {
+                roomId: chatRoom.roomId,
+                participants: chatRoom.participants.map(p => p._id?.toString() || p.toString())
+              } : null
+            };
+
+            // Notify the swiper (current user)
+            socketService.sendToUser(swiperId, 'new_match', matchData);
+
+            // Notify the target user about the match
+            const targetMatchData = {
+              ...matchData,
+              otherUser: {
+                id: swiperUser._id.toString(),
+                firstName: swiperUser.firstName || '',
+                photo: swiperUser.photos && swiperUser.photos.length > 0 ? swiperUser.photos[0] : null
+              }
+            };
+            socketService.sendToUser(targetUserId, 'new_match', targetMatchData);
+
+            console.log(`📢 Match notifications sent to ${swiperId} and ${targetUserId}`);
+          } catch (socketError) {
+            console.error('Error sending match notifications:', socketError);
+            // Don't fail the swipe if socket notification fails
+          }
+          
           console.log(`🎉 New match created between ${swiperId} and ${targetUserId}`);
         } catch (connectionError) {
           console.error('Error creating connection or syncing matches:', connectionError);
-          // Don't fail the swipe if connection creation fails
+          // Don't fail the swipe if connection creation fails, but log it
         }
       }
     }
