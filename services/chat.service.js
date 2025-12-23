@@ -30,14 +30,15 @@ class ChatService {
           otherUser: {
             id: otherParticipant._id,
             firstName: otherParticipant.firstName || '',
-            lastName: otherParticipant.lastName || '',
-            profilePhotoPath: otherParticipant.profilePhotoPath || null
+            lastName: null, // User model doesn't have lastName
+            profilePhotoPath: (otherParticipant.photos && otherParticipant.photos.length > 0)
+              ? otherParticipant.photos[0]
+              : null
           },
           lastMessage: room.lastMessage ? {
             content: room.lastMessage.content,
             senderId: room.lastMessage.senderId?._id,
-            senderName: room.lastMessage.senderId ?
-              `${room.lastMessage.senderId.firstName || ''} ${room.lastMessage.senderId.lastName || ''}` : '',
+            senderName: room.lastMessage.senderId?.firstName || '',
             timestamp: room.lastMessage.timestamp,
             isEncrypted: room.lastMessage.isEncrypted,
             messageHash: room.lastMessage.messageHash

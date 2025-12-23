@@ -101,16 +101,16 @@ chatRoomSchema.statics.getChatRoomsForUser = function(userId) {
     participants: userId,
     isActive: true
   })
-  .populate('participants', 'firstName lastName profilePhotoPath')
-  .populate('lastMessage.senderId', 'firstName lastName')
+  .populate('participants', 'firstName photos')
+  .populate('lastMessage.senderId', 'firstName photos')
   .sort({ updatedAt: -1 });
 };
 
 // Static method to get a specific chat room
 chatRoomSchema.statics.getChatRoom = function(roomId) {
   return this.findOne({ roomId })
-    .populate('participants', 'firstName lastName profilePhotoPath')
-    .populate('lastMessage.senderId', 'firstName lastName');
+    .populate('participants', 'firstName photos')
+    .populate('lastMessage.senderId', 'firstName photos');
 };
 
 // Method to update last message

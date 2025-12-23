@@ -84,7 +84,7 @@ messageSchema.statics.getMessagesForRoom = function(roomId, limit = 50, offset =
     roomId,
     isDeleted: false
   })
-  .populate('senderId', 'firstName lastName profilePhotoPath')
+  .populate('senderId', 'firstName photos')
   .sort({ timestamp: -1 })
   .limit(limit)
   .skip(offset);
