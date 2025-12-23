@@ -4,13 +4,16 @@ const userSchema = new mongoose.Schema({
   // Basic info
   firstName: {
     type: String,
-    required: true,
+    trim: true
+  },
+  lastName: {
+    type: String,
     trim: true
   },
   email: {
     type: String,
-    required: true,
     unique: true,
+    sparse: true,
     trim: true,
     lowercase: true
   },
@@ -51,10 +54,10 @@ const userSchema = new mongoose.Schema({
       message: 'Maximum 3 prompts allowed, each with max 500 characters'
     }
   },
-  pronouns: {
+  pronouns: [{
     type: String,
     trim: true
-  },
+  }],
   gender: {
     type: String,
     enum: ['Male', 'Female', 'Non-binary', 'Other']
@@ -66,6 +69,10 @@ const userSchema = new mongoose.Schema({
   interestedIn: {
     type: String,
     enum: ['Men', 'Women', 'Non-binary people', 'Everyone']
+  },
+  relationshipType: {
+    type: String,
+    trim: true
   },
   workplace: {
     type: String,
@@ -130,6 +137,10 @@ const userSchema = new mongoose.Schema({
   smokingStatus: {
     type: String,
     enum: ['Never', 'Rarely', 'Socially', 'Often', 'Prefer not to say']
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
   },
   
   // App functionality fields

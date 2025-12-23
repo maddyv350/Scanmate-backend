@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 exports.register = async (req, res) => {
   try {
@@ -40,6 +41,74 @@ exports.register = async (req, res) => {
   }
 };
 
+// Dev stub: always uses static OTP for now
+const DEV_OTP_CODE = process.env.DEV_OTP_CODE || '111111';
+
+exports.sendOtp = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+
+    // In production, integrate SMS provider here.
+    console.log(`📲 Sending OTP to ${phoneNumber} (dev stub uses ${DEV_OTP_CODE})`);
+
+    return res.json({
+      success: true,
+      message: 'OTP sent',
+      devHint: 'Use 111111 in development',
+    });
+  } catch (error) {
+    console.error('❌ Error sending OTP:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.verifyOtp = async (req, res) => {
+  try {
+    const { phoneNumber, otp } = req.body;
+
+    if (!phoneNumber || !otp) {
+      return res.status(400).json({ message: 'Phone number and OTP are required' });
+    }
+
+    if (otp !== DEV_OTP_CODE) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    let user = await User.findOne({ phoneNumber });
+
+    if (!user) {
+      const placeholderPassword = crypto.randomBytes(16).toString('hex');
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(placeholderPassword, salt);
+
+      user = new User({
+        phoneNumber,
+        password: hashedPassword,
+        isProfileComplete: false,
+      });
+
+      await user.save();
+      console.log(`✅ Created new OTP-first user ${user._id} for ${phoneNumber}`);
+    } else {
+      console.log(`🔓 OTP login for existing user ${user._id}`);
+    }
+
+    // Issue JWT
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.json({
+      token,
+      userId: user._id,
+      isProfileComplete: user.isProfileComplete,
+    });
+  } catch (error) {
+    console.error('❌ Error verifying OTP:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -74,6 +143,9 @@ exports.completeProfile = async (req, res) => {
     const { userId } = req.user; // Assuming you have middleware to extract user from token
     const {
       firstName,
+      lastName,
+      email,
+      emailVerified,
       birthDate,
       photos,
       prompts,
@@ -81,6 +153,7 @@ exports.completeProfile = async (req, res) => {
       gender,
       sexuality,
       interestedIn,
+      relationshipType,
       workplace,
       jobTitle,
       school,
@@ -107,6 +180,13 @@ exports.completeProfile = async (req, res) => {
 
     // Update user profile with all the new fields
     if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (email) {
+      user.email = email;
+      if (emailVerified !== undefined) {
+        user.emailVerified = !!emailVerified;
+      }
+    }
     if (birthDate) user.birthDate = new Date(birthDate);
     
     // Handle photos - if photos are provided as base64 array, upload to S3
@@ -205,6 +285,7 @@ exports.completeProfile = async (req, res) => {
     if (gender) user.gender = gender;
     if (sexuality !== undefined) user.sexuality = sexuality;
     if (interestedIn !== undefined) user.interestedIn = interestedIn;
+    if (relationshipType !== undefined) user.relationshipType = relationshipType;
     if (workplace !== undefined) user.workplace = workplace;
     if (jobTitle !== undefined) user.jobTitle = jobTitle;
     if (school !== undefined) user.school = school;

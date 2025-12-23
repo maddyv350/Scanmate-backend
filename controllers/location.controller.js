@@ -94,6 +94,18 @@ const locationController = {
       console.log('🔍 Getting nearby users for userId:', userId);
       console.log('📍 Search coordinates:', { latitude, longitude, radius });
 
+      // Check if the requesting user has dropped their location
+      const userLocation = await Location.getUserLocation(userId);
+      if (!userLocation) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must drop your location first to view other profiles. Please drop your location to see nearby users.',
+          error: 'Location not dropped'
+        });
+      }
+
+      console.log('✅ User has active location drop, proceeding with nearby users search');
+
       // Get active connections for the current user
       const Connection = require('../models/connection.model');
       console.log('🔍 Looking for active connections for user:', userId);

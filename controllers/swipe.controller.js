@@ -1,6 +1,7 @@
 const Swipe = require('../models/swipe.model');
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
+const Location = require('../models/location.model');
 const chatService = require('../services/chat.service');
 
 /**
@@ -11,6 +12,16 @@ const recordSwipe = async (req, res) => {
   try {
     const { targetUserId, swipeDirection, message } = req.body;
     const swiperId = req.user.userId; // From auth middleware - JWT contains userId, not id
+
+    // Check if the user has dropped their location (required to swipe)
+    const userLocation = await Location.getUserLocation(swiperId);
+    if (!userLocation) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must drop your location first to swipe on profiles. Please drop your location to interact with other users.',
+        error: 'Location not dropped'
+      });
+    }
 
     // Validate input
     if (!targetUserId || !swipeDirection) {
@@ -73,7 +84,7 @@ const recordSwipe = async (req, res) => {
     if (swipeDirection === 'right') {
       match = await swipe.checkForMatch();
       
-      // If there's a match, create a connection and chat room
+      // If there's a match, create a connection, sync matches, and chat room
       if (match) {
         try {
           // Check if connection already exists
@@ -98,6 +109,26 @@ const recordSwipe = async (req, res) => {
             await connection.save();
           }
           
+          // Sync matches - add each user to the other's matches array
+          const swiper = await User.findById(swiperId);
+          const target = await User.findById(targetUserId);
+          
+          if (swiper && target) {
+            // Add target to swiper's matches if not already there
+            if (!swiper.matches.includes(targetUserId)) {
+              swiper.matches.push(targetUserId);
+              await swiper.save();
+              console.log(`✅ Added ${targetUserId} to ${swiperId}'s matches`);
+            }
+            
+            // Add swiper to target's matches if not already there
+            if (!target.matches.includes(swiperId)) {
+              target.matches.push(swiperId);
+              await target.save();
+              console.log(`✅ Added ${swiperId} to ${targetUserId}'s matches`);
+            }
+          }
+          
           // Auto-create chat room for the match
           try {
             await chatService.createOrGetChatRoom(swiperId, targetUserId);
@@ -109,7 +140,7 @@ const recordSwipe = async (req, res) => {
           
           console.log(`🎉 New match created between ${swiperId} and ${targetUserId}`);
         } catch (connectionError) {
-          console.error('Error creating connection:', connectionError);
+          console.error('Error creating connection or syncing matches:', connectionError);
           // Don't fail the swipe if connection creation fails
         }
       }
