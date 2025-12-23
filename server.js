@@ -35,7 +35,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 // Root route
 app.get('/', (req, res) => {
   res.json({
-    message: 'Scanmate Backend API',
+    message: 'Scanmate Backend API documentation',
     version: require('./package.json').version,
     status: 'running',
     endpoints: {
