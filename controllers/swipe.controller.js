@@ -1,6 +1,7 @@
 const Swipe = require('../models/swipe.model');
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
+const chatService = require('../services/chat.service');
 
 /**
  * Record a swipe action
@@ -72,18 +73,39 @@ const recordSwipe = async (req, res) => {
     if (swipeDirection === 'right') {
       match = await swipe.checkForMatch();
       
-      // If there's a match, create a connection
+      // If there's a match, create a connection and chat room
       if (match) {
         try {
-          const connection = new Connection({
-            senderId: swiperId,
-            receiverId: targetUserId,
+          // Check if connection already exists
+          let connection = await Connection.findOne({
+            $or: [
+              { senderId: swiperId, receiverId: targetUserId },
+              { senderId: targetUserId, receiverId: swiperId }
+            ],
             status: 'accepted',
-            respondedAt: new Date(),
             isActive: true
           });
+
+          // Create connection if it doesn't exist
+          if (!connection) {
+            connection = new Connection({
+              senderId: swiperId,
+              receiverId: targetUserId,
+              status: 'accepted',
+              respondedAt: new Date(),
+              isActive: true
+            });
+            await connection.save();
+          }
           
-          await connection.save();
+          // Auto-create chat room for the match
+          try {
+            await chatService.createOrGetChatRoom(swiperId, targetUserId);
+            console.log(`💬 Chat room created for match between ${swiperId} and ${targetUserId}`);
+          } catch (chatError) {
+            console.error('Error creating chat room:', chatError);
+            // Don't fail the swipe if chat room creation fails
+          }
           
           console.log(`🎉 New match created between ${swiperId} and ${targetUserId}`);
         } catch (connectionError) {
