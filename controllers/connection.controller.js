@@ -297,42 +297,65 @@ const connectionController = {
       // Format response - only include users not yet swiped by current user
       const receivedLikes = swipes
         .filter(swipe => {
-          if (!swipe.swiperId || !swipe.swiperId._id) return false;
+          if (!swipe || !swipe.swiperId || !swipe.swiperId._id) return false;
           const swiperId = swipe.swiperId._id.toString();
-          return !swipedUserIds.contains(swiperId);
+          return !swipedUserIds.has(swiperId);
         })
         .map(swipe => {
           const user = swipe.swiperId;
           
-          // Calculate age from birthDate
-          let age = null;
-          if (user && user.birthDate) {
-            const birthDate = new Date(user.birthDate);
-            const today = new Date();
-            age = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+          // Safety check
+          if (!user || !user._id) {
+            return null;
           }
           
-          // Get first photo from photos array
-          const userPhoto = (user && user.photos && user.photos.length > 0) 
-            ? user.photos[0] 
-            : null;
+          // Calculate age from birthDate
+          let age = null;
+          if (user.birthDate) {
+            try {
+              const birthDate = new Date(user.birthDate);
+              if (!isNaN(birthDate.getTime())) {
+                const today = new Date();
+                age = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+              }
+            } catch (e) {
+              console.error('Error calculating age:', e);
+            }
+          }
+          
+          // Get first photo from photos array (handle null/undefined)
+          let userPhoto = null;
+          if (user.photos && Array.isArray(user.photos) && user.photos.length > 0) {
+            userPhoto = user.photos[0] || null;
+          }
           
           // Use firstName as userName (User model doesn't have lastName)
-          const userName = (user && user.firstName) 
-            ? user.firstName
-            : 'Unknown User';
+          const userName = user.firstName || 'Unknown User';
+          
+          // Handle timestamp
+          let likedAt = swipe.timestamp;
+          if (likedAt && !(likedAt instanceof Date)) {
+            try {
+              likedAt = new Date(likedAt);
+            } catch (e) {
+              likedAt = new Date();
+            }
+          } else if (!likedAt) {
+            likedAt = new Date();
+          }
           
           return {
-            userId: user._id,
+            userId: user._id.toString(),
             userName: userName,
             userPhoto: userPhoto,
             age: age,
             gender: user.gender || null,
             bio: null, // User model doesn't have bio/description field
-            likedAt: swipe.timestamp,
+            likedAt: likedAt,
             message: swipe.message || null
           };
-        });
+        })
+        .filter(like => like !== null); // Remove any null entries
 
       res.json({
         success: true,
@@ -349,10 +372,12 @@ const connectionController = {
 
     } catch (error) {
       console.error('Error getting received likes:', error);
+      console.error('Error stack:', error.stack);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   },
