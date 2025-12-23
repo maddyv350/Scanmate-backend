@@ -429,7 +429,12 @@ exports.updateProfileField = async (req, res) => {
     const allowedFields = [
       'firstName', 'lastName', 'birthDate', 'profilePhotoPath', 'purposes',
       'description', 'gender', 'hideGender', 'socials', 'nationality',
-      'industry', 'studyOrWork', 'city', 'favoritePlaces'
+      'industry', 'studyOrWork', 'city', 'favoritePlaces',
+      // Extended profile fields
+      'photos', 'prompts', 'pronouns', 'sexuality', 'interestedIn',
+      'relationshipType', 'workplace', 'jobTitle', 'school', 'educationLevel',
+      'religiousBeliefs', 'hometown', 'languagesSpoken', 'datingIntentions',
+      'height', 'ethnicity', 'zodiacSign', 'drinkingStatus', 'smokingStatus'
     ];
 
     if (!allowedFields.includes(field)) {
