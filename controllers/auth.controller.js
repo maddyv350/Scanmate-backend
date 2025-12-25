@@ -32,9 +32,10 @@ exports.register = async (req, res) => {
 
     await newUser.save();
 
-    // Create and return JWT token
-    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.status(201).json({ token, userId: newUser._id });
+    // Create and return JWT token - convert _id to string
+    const userId = newUser._id.toString();
+    const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.status(201).json({ token, userId });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -96,16 +97,18 @@ exports.verifyOtp = async (req, res) => {
       console.log(`🔓 OTP login for existing user ${user._id}`);
     }
 
-    // Issue JWT
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    // Issue JWT - convert _id to string
+    const userId = user._id.toString();
+    const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({
       token,
-      userId: user._id,
+      userId,
       isProfileComplete: user.isProfileComplete,
     });
   } catch (error) {
     console.error('❌ Error verifying OTP:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Server error', error: error.message || error.toString() });
   }
 };
 
@@ -129,9 +132,10 @@ exports.login = async (req, res) => {
     user.lastActive = new Date();
     await user.save();
 
-    // Create and return JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token, userId: user._id, isProfileComplete: user.isProfileComplete });
+    // Create and return JWT token - convert _id to string
+    const userId = user._id.toString();
+    const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, userId, isProfileComplete: user.isProfileComplete });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
