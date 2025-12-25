@@ -85,14 +85,33 @@ exports.verifyOtp = async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(placeholderPassword, salt);
 
-      user = new User({
-        phoneNumber,
-        password: hashedPassword,
-        isProfileComplete: false,
-      });
+      // Generate a unique temporary email to avoid duplicate key errors on null email
+      // This will be replaced when user completes profile
+      const tempEmail = `temp_${phoneNumber.replace(/[^0-9]/g, '')}_${Date.now()}@temp.findly.app`;
 
-      await user.save();
-      console.log(`✅ Created new OTP-first user ${user._id} for ${phoneNumber}`);
+      try {
+        user = new User({
+          phoneNumber,
+          email: tempEmail,
+          password: hashedPassword,
+          isProfileComplete: false,
+        });
+
+        await user.save();
+        console.log(`✅ Created new OTP-first user ${user._id} for ${phoneNumber}`);
+      } catch (saveError) {
+        // If save fails due to duplicate key, check if user was created by another request
+        if (saveError.code === 11000) {
+          user = await User.findOne({ phoneNumber });
+          if (!user) {
+            // If still not found, rethrow the error
+            throw saveError;
+          }
+          console.log(`🔓 OTP login for existing user ${user._id} (found after save conflict)`);
+        } else {
+          throw saveError;
+        }
+      }
     } else {
       console.log(`🔓 OTP login for existing user ${user._id}`);
     }
