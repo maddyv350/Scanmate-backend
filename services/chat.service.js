@@ -25,15 +25,42 @@ class ChatService {
 
 
 
+        // Calculate age from birthDate
+        let age = null;
+        if (otherParticipant.birthDate) {
+          const birthDate = new Date(otherParticipant.birthDate);
+          const today = new Date();
+          age = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+        }
+
         return {
           roomId: room.roomId,
           otherUser: {
             id: otherParticipant._id,
             firstName: otherParticipant.firstName || '',
-            lastName: null, // User model doesn't have lastName
+            lastName: otherParticipant.lastName || null,
             profilePhotoPath: (otherParticipant.photos && otherParticipant.photos.length > 0)
               ? otherParticipant.photos[0]
-              : null
+              : null,
+            // Extended profile data
+            photos: otherParticipant.photos || [],
+            age: age,
+            gender: otherParticipant.gender || null,
+            pronouns: otherParticipant.pronouns || [],
+            jobTitle: otherParticipant.jobTitle || null,
+            workplace: otherParticipant.workplace || null,
+            school: otherParticipant.school || null,
+            educationLevel: otherParticipant.educationLevel || null,
+            hometown: otherParticipant.hometown || null,
+            height: otherParticipant.height || null,
+            ethnicity: otherParticipant.ethnicity || null,
+            religiousBeliefs: otherParticipant.religiousBeliefs || null,
+            zodiacSign: otherParticipant.zodiacSign || null,
+            drinkingStatus: otherParticipant.drinkingStatus || null,
+            smokingStatus: otherParticipant.smokingStatus || null,
+            datingIntentions: otherParticipant.datingIntentions || null,
+            languagesSpoken: otherParticipant.languagesSpoken || [],
+            prompts: otherParticipant.prompts || [],
           },
           lastMessage: room.lastMessage ? {
             content: room.lastMessage.content,
