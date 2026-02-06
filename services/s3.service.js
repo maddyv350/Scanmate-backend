@@ -17,58 +17,6 @@ if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !BUC
 }
 
 class S3Service {
-  /**
-   * Upload a base64 image to S3
-   * @param {string} base64Image - Base64 encoded image string
-   * @param {string} folder - Folder path in S3 (e.g., 'profile-photos', 'user-photos')
-   * @param {string} userId - User ID for file naming
-   * @returns {Promise<string>} - Public URL of uploaded image
-   */
-  async uploadBase64Image(base64Image, folder, userId) {
-    try {
-      if (!BUCKET_NAME) {
-        throw new Error('AWS_S3_BUCKET_NAME is not configured');
-      }
-
-      // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
-      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
-      
-      // Determine file extension from base64 prefix or default to jpg
-      const imageType = base64Image.match(/data:image\/(\w+);base64/);
-      const extension = imageType ? imageType[1] : 'jpg';
-      
-      // Convert base64 to buffer
-      const buffer = Buffer.from(base64Data, 'base64');
-      
-      // Validate buffer size (max 10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (buffer.length > maxSize) {
-        throw new Error(`Image size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`);
-      }
-      
-      // Generate unique filename
-      const filename = `${userId}_${uuidv4()}.${extension}`;
-      const key = `${folder}/${filename}`;
-      
-      // Upload to S3
-      // Note: ACL is removed because newer S3 buckets don't support ACLs
-      // Public access is handled via bucket policy instead
-      const uploadParams = {
-        Bucket: BUCKET_NAME,
-        Key: key,
-        Body: buffer,
-        ContentType: `image/${extension}`,
-      };
-      
-      const result = await s3.upload(uploadParams).promise();
-      
-      console.log(`✅ Image uploaded to S3: ${result.Location}`);
-      return result.Location; // Return public URL
-    } catch (error) {
-      console.error('❌ Error uploading image to S3:', error);
-      throw new Error(`Failed to upload image to S3: ${error.message}`);
-    }
-  }
 
   /**
    * Upload a buffer/image file to S3
@@ -163,23 +111,27 @@ class S3Service {
   }
 
   /**
-   * Upload multiple images
-   * @param {Array<string>} base64Images - Array of base64 encoded images
+   * Upload multiple files from multer
+   * @param {Array<Express.Multer.File>} files - Array of multer file objects
    * @param {string} folder - Folder path in S3
    * @param {string} userId - User ID for file naming
    * @returns {Promise<Array<string>>} - Array of public URLs
    */
-  async uploadMultipleImages(base64Images, folder, userId) {
+  async uploadMultipleFiles(files, folder, userId) {
     try {
-      const uploadPromises = base64Images.map((image, index) => 
-        this.uploadBase64Image(image, folder, `${userId}_${index}`)
-      );
+      console.log(`📤 Uploading ${files.length} files to S3 (multipart)`);
+      
+      const uploadPromises = files.map((file, index) => {
+        console.log(`   File ${index + 1}: ${file.originalname} (${(file.size / 1024).toFixed(2)} KB)`);
+        return this.uploadBuffer(file.buffer, file.mimetype, folder, `${userId}_${index}`);
+      });
       
       const urls = await Promise.all(uploadPromises);
+      console.log(`✅ Successfully uploaded ${urls.length} files to S3`);
       return urls;
     } catch (error) {
-      console.error('❌ Error uploading multiple images to S3:', error);
-      throw new Error(`Failed to upload images to S3: ${error.message}`);
+      console.error('❌ Error uploading multiple files to S3:', error);
+      throw new Error(`Failed to upload files to S3: ${error.message}`);
     }
   }
 }
