@@ -280,7 +280,7 @@ exports.completeProfile = async (req, res) => {
     }
     
     // Update other profile fields (parse arrays from multipart form data)
-    if (prompts) user.prompts = prompts;
+    if (prompts) user.prompts = parseArray(prompts);
     if (pronouns !== undefined) user.pronouns = parseArray(pronouns);
     if (gender) user.gender = gender;
     if (sexuality !== undefined) user.sexuality = sexuality;

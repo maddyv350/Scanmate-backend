@@ -33,12 +33,12 @@ const userSchema = new mongoose.Schema({
     type: Date
   },
   photos: {
-    type: [String],  // URLs to photo storage (max 4)
+    type: [String],  // URLs to photo storage (max 6)
     validate: {
       validator: function(v) {
-        return !v || v.length <= 4;
+        return !v || v.length <= 6;
       },
-      message: 'Maximum 4 photos allowed'
+      message: 'Maximum 6 photos allowed'
     }
   },
   prompts: {
