@@ -60,16 +60,16 @@ const userSchema = new mongoose.Schema({
   }],
   gender: {
     type: String,
-    enum: ['Male', 'Female', 'Non-binary', 'Other']
+    enum: ['Man', 'Woman', 'Non-binary']
   },
   sexuality: {
     type: String,
-    enum: ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Pansexual', 'Asexual', 'Other']
+    enum: ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Allosexual', 'Androsexual', 'Asexual']
   },
-  interestedIn: {
+  interestedIn: [{
     type: String,
     enum: ['Men', 'Women', 'Non-binary people', 'Everyone']
-  },
+  }],
   relationshipType: {
     type: String,
     trim: true
@@ -90,10 +90,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['High School', 'Some College', 'Associate Degree', 'Bachelor Degree', 'Master Degree', 'Doctorate', 'Other']
   },
-  religiousBeliefs: {
+  religiousBeliefs: [{
     type: String,
     trim: true
-  },
+  }],
   hometown: {
     type: String,
     trim: true
@@ -104,7 +104,15 @@ const userSchema = new mongoose.Schema({
   }],
   datingIntentions: {
     type: String,
-    enum: ['Long term', 'Short term', 'Other']
+    enum: [
+      'Life partner',
+      'Long-term relationship',
+      'Long-term relationship, open to short',
+      'Short-term relationship, open to long',
+      'Short-term relationship',
+      'Figuring out my dating goals',
+      'Prefer not to say'
+    ]
   },
   height: {
     type: Number,  // in centimeters
@@ -132,11 +140,11 @@ const userSchema = new mongoose.Schema({
   },
   drinkingStatus: {
     type: String,
-    enum: ['Never', 'Rarely', 'Socially', 'Often', 'Prefer not to say']
+    enum: ['Yes', 'Sometimes', 'No', 'Prefer not to say']
   },
   smokingStatus: {
     type: String,
-    enum: ['Never', 'Rarely', 'Socially', 'Often', 'Prefer not to say']
+    enum: ['Yes', 'Sometimes', 'No', 'Prefer not to say']
   },
   emailVerified: {
     type: Boolean,

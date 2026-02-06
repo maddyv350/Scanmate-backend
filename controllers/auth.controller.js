@@ -197,6 +197,11 @@ exports.completeProfile = async (req, res) => {
     console.log(`📋 Received fields: ${Object.keys(req.body).join(', ')}`);
     console.log(`📦 Content-Type: ${req.get('Content-Type')}`);
     console.log(`📸 Multipart files: ${req.files ? req.files.length : 0}`);
+    console.log(`🔍 Field types:`, {
+      interestedIn: Array.isArray(interestedIn) ? 'array' : typeof interestedIn,
+      religiousBeliefs: Array.isArray(religiousBeliefs) ? 'array' : typeof religiousBeliefs,
+      pronouns: Array.isArray(pronouns) ? 'array' : typeof pronouns,
+    });
 
     const user = await User.findById(userId);
     if (!user) {
@@ -208,6 +213,17 @@ exports.completeProfile = async (req, res) => {
       if (!value) return undefined;
       if (Array.isArray(value)) return value;
       if (typeof value === 'string') {
+        // Handle stringified arrays like "[ 'Women' ]"
+        if (value.startsWith('[') && value.endsWith(']')) {
+          try {
+            // Remove brackets and parse
+            const cleaned = value.slice(1, -1).trim();
+            return cleaned.split(',').map(v => v.trim().replace(/^['"]|['"]$/g, '')).filter(v => v);
+          } catch (e) {
+            console.error('Error parsing array string:', e);
+          }
+        }
+        // Handle comma-separated strings
         return value.split(',').map(v => v.trim()).filter(v => v);
       }
       return [value];
