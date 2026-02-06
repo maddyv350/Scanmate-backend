@@ -40,6 +40,10 @@ const locationController = {
         { isActive: false }
       );
 
+      // Map User gender (Man/Woman/Non-binary) to Location enum (Male/Female/Other)
+      const genderMap = { Man: 'Male', Woman: 'Female', 'Non-binary': 'Other' };
+      const locationGender = (user.gender && genderMap[user.gender]) || 'Other';
+
       // Create new location
       const location = new Location({
         userId: userId,
@@ -54,7 +58,7 @@ const locationController = {
         isActive: true,
         userBio: user.description,
         age: age,
-        gender: user.gender || 'Other',
+        gender: locationGender,
       });
 
       await location.save();
