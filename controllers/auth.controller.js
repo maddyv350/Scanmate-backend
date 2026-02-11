@@ -194,9 +194,11 @@ exports.completeProfile = async (req, res) => {
     } = req.body;
 
     console.log(`📝 Starting profile completion for user ${userId}`);
-    console.log(`📋 Received fields: ${Object.keys(req.body).join(', ')}`);
+    console.log(`📋 Received fields: ${Object.keys(req.body || {}).join(', ')}`);
     console.log(`📦 Content-Type: ${req.get('Content-Type')}`);
     console.log(`📸 Multipart files: ${req.files ? req.files.length : 0}`);
+    console.log(`🔍 languagesSpoken:`, req.body?.languagesSpoken, typeof req.body?.languagesSpoken);
+    console.log(`🔍 zodiacSign:`, req.body?.zodiacSign, typeof req.body?.zodiacSign);
     console.log(`🔍 Field types:`, {
       interestedIn: Array.isArray(interestedIn) ? 'array' : typeof interestedIn,
       religiousBeliefs: Array.isArray(religiousBeliefs) ? 'array' : typeof religiousBeliefs,
@@ -210,24 +212,28 @@ exports.completeProfile = async (req, res) => {
 
     // Helper function to parse comma-separated strings to arrays
     const parseArray = (value) => {
-      if (!value) return undefined;
-      if (Array.isArray(value)) return value;
+      if (value == null || value === '') return undefined;
+      if (typeof value === 'string' && (value === 'null' || value.trim() === '')) return undefined;
+      if (Array.isArray(value)) return value.length ? value : undefined;
       if (typeof value === 'string') {
         // Handle stringified arrays like "[ 'Women' ]"
         if (value.startsWith('[') && value.endsWith(']')) {
           try {
-            // Remove brackets and parse
             const cleaned = value.slice(1, -1).trim();
-            return cleaned.split(',').map(v => v.trim().replace(/^['"]|['"]$/g, '')).filter(v => v);
+            const arr = cleaned.split(',').map(v => v.trim().replace(/^['"]|['"]$/g, '')).filter(v => v);
+            return arr.length ? arr : undefined;
           } catch (e) {
             console.error('Error parsing array string:', e);
           }
         }
         // Handle comma-separated strings
-        return value.split(',').map(v => v.trim()).filter(v => v);
+        const arr = value.split(',').map(v => v.trim()).filter(v => v && v !== 'null');
+        return arr.length ? arr : undefined;
       }
       return [value];
     };
+
+    const safeString = (v) => (v != null && v !== '' && String(v).trim() !== '' && String(v) !== 'null' ? String(v).trim() : undefined);
 
     // Update user profile with all the new fields
     if (firstName) user.firstName = firstName;
@@ -292,7 +298,8 @@ exports.completeProfile = async (req, res) => {
     if (educationLevel !== undefined) user.educationLevel = educationLevel;
     if (religiousBeliefs !== undefined) user.religiousBeliefs = parseArray(religiousBeliefs);
     if (hometown !== undefined) user.hometown = hometown;
-    if (languagesSpoken) user.languagesSpoken = parseArray(languagesSpoken);
+    const languagesParsed = parseArray(req.body?.languagesSpoken ?? languagesSpoken);
+    if (languagesParsed && languagesParsed.length > 0) user.languagesSpoken = languagesParsed;
     if (datingIntentions !== undefined) user.datingIntentions = datingIntentions;
     if (height !== undefined) user.height = parseFloat(height);
     if (location) {
@@ -313,7 +320,8 @@ exports.completeProfile = async (req, res) => {
       }
     }
     if (ethnicity !== undefined) user.ethnicity = ethnicity;
-    if (zodiacSign !== undefined) user.zodiacSign = zodiacSign;
+    const zodiacValue = safeString(req.body?.zodiacSign ?? zodiacSign);
+    if (zodiacValue) user.zodiacSign = zodiacValue;
     if (drinkingStatus !== undefined) user.drinkingStatus = drinkingStatus;
     if (smokingStatus !== undefined) user.smokingStatus = smokingStatus;
     

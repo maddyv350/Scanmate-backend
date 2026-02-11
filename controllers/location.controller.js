@@ -165,12 +165,16 @@ const locationController = {
 
       console.log('📊 Found nearby users:', nearbyUsers.length);
 
-      // Filter out current user, connected users, and swiped users, then calculate distances
+      const hasValidCoords = (loc) => loc.location?.coordinates && Array.isArray(loc.location.coordinates) && loc.location.coordinates.length >= 2;
+
       const usersWithDistance = nearbyUsers
         .filter(location => {
-          // Handle both ObjectId and string comparisons
-          const locationUserId = location.userId._id || location.userId;
-          const locationUserIdStr = locationUserId.toString();
+          if (!hasValidCoords(location)) {
+            console.log('⚠️ Skipping location missing coordinates:', location._id);
+            return false;
+          }
+          const locationUserId = location.userId?._id || location.userId;
+          const locationUserIdStr = locationUserId ? locationUserId.toString() : '';
 
           const isNotCurrentUser = locationUserIdStr !== userId.toString();
           const isNotConnected = !connectedUserIds.includes(locationUserIdStr);
@@ -183,18 +187,33 @@ const locationController = {
           return shouldShow;
         })
         .map(location => {
+          const coords = location.location?.coordinates;
+          const lat = Array.isArray(coords) && coords.length >= 2 ? coords[1] : parseFloat(latitude);
+          const lng = Array.isArray(coords) && coords.length >= 2 ? coords[0] : parseFloat(longitude);
           const distance = calculateDistance(
             parseFloat(latitude),
             parseFloat(longitude),
-            location.location.coordinates[1],
-            location.location.coordinates[0]
+            lat,
+            lng
           );
 
-          // Get user data from populated userId field
           const user = location.userId;
-          const dropScore = 0; // Placeholder - can be implemented later
-          const connects = 0;  // Placeholder - can be implemented later
-          const purposes = []; // Placeholder - can be implemented later
+          const dropScore = 0;
+          const connects = 0;
+          const purposes = [];
+
+          const userPhotos = user?.photos && Array.isArray(user.photos) ? user.photos : [];
+          const userPrompts = user?.prompts && Array.isArray(user.prompts) ? user.prompts : [];
+          const firstPhoto = userPhotos[0] || location.userPhoto || null;
+
+          let age = location.age;
+          if ((age == null || age === 0) && user?.birthDate) {
+            const birth = new Date(user.birthDate);
+            const now = new Date();
+            age = Math.floor((now - birth) / (365.25 * 24 * 60 * 60 * 1000));
+          }
+
+          const gender = location.gender || user?.gender || null;
 
           console.log(`📍 User ${location.userName} at distance ${distance.toFixed(2)}km`);
 
@@ -202,21 +221,41 @@ const locationController = {
             id: location._id,
             userId: user?._id || location.userId,
             userName: location.userName,
-            userPhoto: location.userPhoto,
+            userPhoto: firstPhoto,
+            photos: userPhotos,
+            prompts: userPrompts,
             coordinates: {
-              latitude: location.location.coordinates[1],
-              longitude: location.location.coordinates[0]
+              latitude: lat,
+              longitude: lng
             },
             droppedAt: location.droppedAt,
             expiresAt: location.expiresAt,
             isActive: location.isActive,
-            userBio: location.userBio,
-            age: location.age,
-            gender: location.gender,
+            userBio: location.userBio || null,
+            age: age || null,
+            gender: gender,
             distance: distance,
             dropScore: dropScore,
             connects: connects,
             purposes: purposes,
+            firstName: user?.firstName ?? null,
+            lastName: user?.lastName ?? null,
+            birthDate: user?.birthDate ?? null,
+            sexuality: user?.sexuality ?? null,
+            pronouns: user?.pronouns ?? null,
+            height: user?.height ?? null,
+            ethnicity: user?.ethnicity ?? null,
+            zodiacSign: user?.zodiacSign ?? null,
+            smokingStatus: user?.smokingStatus ?? null,
+            drinkingStatus: user?.drinkingStatus ?? null,
+            datingIntentions: user?.datingIntentions ?? null,
+            relationshipType: user?.relationshipType ?? null,
+            jobTitle: user?.jobTitle ?? null,
+            workplace: user?.workplace ?? null,
+            school: user?.school ?? null,
+            educationLevel: user?.educationLevel ?? null,
+            hometown: user?.hometown ?? null,
+            languagesSpoken: user?.languagesSpoken ?? null,
           };
         })
         .sort((a, b) => a.distance - b.distance);

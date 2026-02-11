@@ -99,15 +99,16 @@ locationSchema.statics.findNearbyUsers = function(latitude, longitude, radiusInK
   
   console.log('🔍 MongoDB query (no geospatial):', JSON.stringify(query, null, 2));
   
+  const profileFields = 'firstName lastName birthDate gender photos prompts workplace jobTitle school educationLevel hometown languagesSpoken height ethnicity zodiacSign drinkingStatus smokingStatus datingIntentions relationshipType pronouns sexuality';
   return this.find(query)
-    .populate('userId', 'firstName lastName profilePhotoPath birthDate gender description')
+    .populate('userId', profileFields)
     .then(results => {
       console.log('🔍 Query results count:', results.length);
       results.forEach((result, index) => {
         console.log(`🔍 Result ${index + 1}:`, {
           userId: result.userId,
           userName: result.userName,
-          coordinates: result.coordinates,
+          location: result.location ? 'present' : 'missing',
           isActive: result.isActive,
           expiresAt: result.expiresAt
         });
