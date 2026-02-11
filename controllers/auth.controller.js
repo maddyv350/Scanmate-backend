@@ -415,6 +415,22 @@ exports.getProfileForCompletion = async (req, res) => {
   }
 };
 
+// Helper to parse value into array for schema array fields (handles string or array from client)
+function parseArrayValue(value) {
+  if (value == null) return undefined;
+  if (Array.isArray(value)) return value.map(v => (v != null ? String(v).trim() : '')).filter(Boolean);
+  if (typeof value === 'string') {
+    if (value.startsWith('[') && value.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed.map(v => String(v).trim()).filter(Boolean) : [value.trim()];
+      } catch (_) { /* fallback to comma split */ }
+    }
+    return value.split(',').map(v => v.trim()).filter(Boolean);
+  }
+  return [String(value)];
+}
+
 exports.updateProfileField = async (req, res) => {
   try {
     const { userId } = req.user;
@@ -425,7 +441,7 @@ exports.updateProfileField = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Validate field name to prevent injection
+    // Validate field name to prevent injection (include aliases: languages -> languagesSpoken, zodiac -> zodiacSign)
     const allowedFields = [
       'firstName', 'lastName', 'birthDate', 'profilePhotoPath', 'purposes',
       'description', 'gender', 'hideGender', 'socials', 'nationality',
@@ -433,23 +449,36 @@ exports.updateProfileField = async (req, res) => {
       // Extended profile fields
       'photos', 'prompts', 'pronouns', 'sexuality', 'interestedIn',
       'relationshipType', 'workplace', 'jobTitle', 'school', 'educationLevel',
-      'religiousBeliefs', 'hometown', 'languagesSpoken', 'datingIntentions',
-      'height', 'ethnicity', 'zodiacSign', 'drinkingStatus', 'smokingStatus'
+      'religiousBeliefs', 'hometown', 'languagesSpoken', 'languages', 'datingIntentions',
+      'height', 'ethnicity', 'zodiacSign', 'zodiac', 'drinkingStatus', 'smokingStatus'
     ];
 
     if (!allowedFields.includes(field)) {
       return res.status(400).json({ message: 'Invalid field name' });
     }
 
-    // Update the field
-    user[field] = value;
-    
+    // Map aliases to schema field names and normalize array/string values
+    const schemaField = field === 'zodiac' ? 'zodiacSign' : field === 'languages' ? 'languagesSpoken' : field;
+    const arrayFields = ['languagesSpoken', 'pronouns', 'religiousBeliefs', 'interestedIn', 'prompts', 'photos'];
+
+    if (arrayFields.includes(schemaField)) {
+      const parsed = parseArrayValue(value);
+      user[schemaField] = parsed != null ? parsed : value;
+    } else if (schemaField === 'zodiacSign') {
+      user.zodiacSign = value != null && value !== '' ? String(value).trim() : undefined;
+    } else if (schemaField !== field) {
+      // alias: languages -> languagesSpoken already handled above
+      user[schemaField] = value;
+    } else {
+      user[field] = value;
+    }
+
     // Update legacy fields for backward compatibility
     if (field === 'firstName' || field === 'lastName') {
-      user.name = `${user.firstName} ${user.lastName || ''}`.trim();
+      user.name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
     }
     if (field === 'birthDate') {
-      user.dateOfBirth = new Date(value);
+      user.dateOfBirth = value ? new Date(value) : undefined;
     }
     if (field === 'description') {
       user.bio = value;
@@ -457,10 +486,10 @@ exports.updateProfileField = async (req, res) => {
 
     await user.save();
 
-    res.json({ 
+    res.json({
       message: 'Field updated successfully',
-      field,
-      value: user[field]
+      field: schemaField,
+      value: user[schemaField]
     });
   } catch (error) {
     console.error(error);
