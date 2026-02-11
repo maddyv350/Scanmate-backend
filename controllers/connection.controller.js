@@ -273,13 +273,13 @@ const connectionController = {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      // Get swipes with pagination, populate swiper details
+      const profileFields = 'firstName lastName birthDate gender photos prompts workplace jobTitle school educationLevel hometown languagesSpoken height ethnicity zodiacSign drinkingStatus smokingStatus datingIntentions relationshipType pronouns sexuality';
       const swipes = await Swipe.find(query)
         .select('swiperId swipeDirection timestamp message')
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('swiperId', 'firstName photos gender birthDate');
+        .populate('swiperId', profileFields);
 
       // Get total count for pagination
       const total = await Swipe.countDocuments(query);
@@ -303,13 +303,9 @@ const connectionController = {
         })
         .map(swipe => {
           const user = swipe.swiperId;
-          
-          // Safety check
-          if (!user || !user._id) {
-            return null;
-          }
-          
-          // Calculate age from birthDate
+
+          if (!user || !user._id) return null;
+
           let age = null;
           if (user.birthDate) {
             try {
@@ -322,37 +318,48 @@ const connectionController = {
               console.error('Error calculating age:', e);
             }
           }
-          
-          // Get first photo from photos array (handle null/undefined)
-          let userPhoto = null;
-          if (user.photos && Array.isArray(user.photos) && user.photos.length > 0) {
-            userPhoto = user.photos[0] || null;
-          }
-          
-          // Use firstName as userName (User model doesn't have lastName)
-          const userName = user.firstName || 'Unknown User';
-          
-          // Handle timestamp
+
+          const userPhotos = user.photos && Array.isArray(user.photos) ? user.photos : [];
+          const userPrompts = user.prompts && Array.isArray(user.prompts) ? user.prompts : [];
+          const userPhoto = userPhotos[0] || null;
+          const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Unknown User';
+
           let likedAt = swipe.timestamp;
           if (likedAt && !(likedAt instanceof Date)) {
-            try {
-              likedAt = new Date(likedAt);
-            } catch (e) {
-              likedAt = new Date();
-            }
+            try { likedAt = new Date(likedAt); } catch (e) { likedAt = new Date(); }
           } else if (!likedAt) {
             likedAt = new Date();
           }
-          
+
           return {
             userId: user._id.toString(),
-            userName: userName,
-            userPhoto: userPhoto,
-            age: age,
+            userName,
+            userPhoto,
+            age,
             gender: user.gender || null,
-            bio: null, // User model doesn't have bio/description field
-            likedAt: likedAt,
-            message: swipe.message || null
+            bio: user.description || null,
+            likedAt,
+            message: swipe.message || null,
+            photos: userPhotos,
+            prompts: userPrompts,
+            firstName: user.firstName || null,
+            lastName: user.lastName || null,
+            birthDate: user.birthDate || null,
+            sexuality: user.sexuality || null,
+            pronouns: user.pronouns || null,
+            height: user.height ?? null,
+            ethnicity: user.ethnicity || null,
+            zodiacSign: user.zodiacSign || null,
+            smokingStatus: user.smokingStatus || null,
+            drinkingStatus: user.drinkingStatus || null,
+            datingIntentions: user.datingIntentions || null,
+            relationshipType: user.relationshipType || null,
+            jobTitle: user.jobTitle || null,
+            workplace: user.workplace || null,
+            school: user.school || null,
+            educationLevel: user.educationLevel || null,
+            hometown: user.hometown || null,
+            languagesSpoken: user.languagesSpoken || null,
           };
         })
         .filter(like => like !== null); // Remove any null entries
