@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Connection = require('../models/connection.model');
 const User = require('../models/user.model');
 const Swipe = require('../models/swipe.model');
@@ -294,12 +295,32 @@ const connectionController = {
         swipedByCurrentUser.map(swipe => swipe.targetUserId.toString())
       );
 
-      // Format response - only include users not yet swiped by current user
+      // Exclude matched users (active connections) – matched users must not appear in likes
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : userId;
+      const activeConnections = await Connection.find({
+        $or: [
+          { senderId: userObjectId, status: 'accepted', isActive: true },
+          { receiverId: userObjectId, status: 'accepted', isActive: true }
+        ]
+      });
+      const matchedUserIds = new Set(
+        activeConnections.map(conn =>
+          conn.senderId.toString() === userId.toString()
+            ? conn.receiverId.toString()
+            : conn.senderId.toString()
+        )
+      );
+
+      // Format response - exclude swiped and matched users
       const receivedLikes = swipes
         .filter(swipe => {
           if (!swipe || !swipe.swiperId || !swipe.swiperId._id) return false;
           const swiperId = swipe.swiperId._id.toString();
-          return !swipedUserIds.has(swiperId);
+          if (swipedUserIds.has(swiperId)) return false;
+          if (matchedUserIds.has(swiperId)) return false;
+          return true;
         })
         .map(swipe => {
           const user = swipe.swiperId;
