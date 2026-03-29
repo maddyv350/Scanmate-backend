@@ -2,6 +2,33 @@ const mongoose = require('mongoose');
 const Location = require('../models/location.model');
 const User = require('../models/user.model');
 
+/** Location document stores Male/Female/Other; User profile uses Man/Woman/Non-binary. */
+const LOCATION_TO_USER_GENDER = { Male: 'Man', Female: 'Woman', Other: 'Non-binary' };
+
+/**
+ * Maps viewer "Who would you like to date?" (interestedIn) to allowed profile genders.
+ * @returns {Set<string>|null} null = no filter (Everyone, missing, or empty)
+ */
+function mapInterestedInToAllowedGenders(interestedIn) {
+  if (!interestedIn || !Array.isArray(interestedIn) || interestedIn.length === 0) return null;
+  if (interestedIn.includes('Everyone')) return null;
+  const allowed = new Set();
+  for (const label of interestedIn) {
+    if (label === 'Men') allowed.add('Man');
+    else if (label === 'Women') allowed.add('Woman');
+    else if (label === 'Non-binary people') allowed.add('Non-binary');
+  }
+  return allowed;
+}
+
+function resolveUserGenderForNearby(user, location) {
+  if (user && user.gender) return user.gender;
+  if (location && location.gender && LOCATION_TO_USER_GENDER[location.gender]) {
+    return LOCATION_TO_USER_GENDER[location.gender];
+  }
+  return null;
+}
+
 const locationController = {
   // Drop by location
   async dropByLocation(req, res) {
@@ -110,6 +137,9 @@ const locationController = {
 
       console.log('✅ User has active location drop, proceeding with nearby users search');
 
+      const viewer = await User.findById(userId).select('interestedIn');
+      const allowedGenders = mapInterestedInToAllowedGenders(viewer?.interestedIn);
+
       // Get active connections for the current user
       const Connection = require('../models/connection.model');
       console.log('🔍 Looking for active connections for user:', userId);
@@ -180,7 +210,19 @@ const locationController = {
           const isNotConnected = !connectedUserIds.includes(locationUserIdStr);
           const isNotSwiped = !swipedUserIds.includes(locationUserIdStr);
 
-          const shouldShow = isNotCurrentUser && isNotConnected && isNotSwiped;
+          let shouldShow = isNotCurrentUser && isNotConnected && isNotSwiped;
+
+          if (shouldShow && allowedGenders !== null) {
+            const profileUser = location.userId && typeof location.userId === 'object'
+              ? location.userId
+              : null;
+            const candidateGender = resolveUserGenderForNearby(profileUser, location);
+            if (allowedGenders.size === 0) {
+              shouldShow = false;
+            } else if (!candidateGender || !allowedGenders.has(candidateGender)) {
+              shouldShow = false;
+            }
+          }
 
           console.log(`👤 User ${locationUserIdStr}: current=${!isNotCurrentUser ? 'FILTERED' : 'OK'}, connected=${!isNotConnected ? 'FILTERED' : 'OK'}, swiped=${!isNotSwiped ? 'FILTERED' : 'OK'} -> ${shouldShow ? 'SHOW' : 'FILTERED'}`);
 
@@ -213,7 +255,7 @@ const locationController = {
             age = Math.floor((now - birth) / (365.25 * 24 * 60 * 60 * 1000));
           }
 
-          const gender = location.gender || user?.gender || null;
+          const gender = resolveUserGenderForNearby(user, location);
 
           console.log(`📍 User ${location.userName} at distance ${distance.toFixed(2)}km`);
 
